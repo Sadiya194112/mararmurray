@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OTP Verification</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+
+  <body
+    style="
+      margin: 0;
+      padding: 50px;
+      background-color: #f5f5f5;
+      font-family: Arial, sans-serif;
+    "
+  >
+    <div
+      style="
+        max-width: 480px;
+        margin: 30px auto;
+        background: linear-gradient(to bottom right, #ffffff 30%, #f9f7ff);
+        padding: 48px 32px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        color: #1a1a1a;
+      "
+    >
+      <div style="text-align: center">
+        <p style="margin-bottom: 24px; color: #444; font-size: 16px">
+          Hi {{ name }},
+        </p>
+        <p style="margin-bottom: 24px; color: #444; font-size: 16px">
+          We noticed you requested help verifying your account. Here’s your
+          4-digit recovery code:
+        </p>
+      </div>
+
+      <div style="text-align: center">
+        <div
+          style="
+            background-color: #7f00ff;
+            color: white;
+            padding: 10px;
+            font-size: 32px;
+            border-radius: 8px;
+            letter-spacing: 3px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          "
+        >
+          {{ otp_code }}
+        </div>
+      </div>
+
+      <p style="font-size: 14px; color: #444; margin-bottom: 8px">
+        This code will expire in 10 minutes, so be sure to enter it soon. If you
+        didn’t request this, please reply to this email immediately.
+      </p>
+      <p style="font-size: 14px; color: #444; margin-top: 8px">
+        Need anything else? Just reply and I'll make sure the team sees it.<br />
+        — Your Garden🌸
+      </p>
+    </div>
+  </body>
+</html>
