@@ -38,5 +38,6 @@ EXPOSE 8005
 ENV DJANGO_SETTINGS_MODULE=core.settings
 ENV DEBUG=False
 
+
 # ১১. রান কমান্ড (সরাসরি python -m uvicorn ব্যবহার করা হচ্ছে যা .venv থেকে আসবে)
 CMD ["python", "-m", "uvicorn", "core.asgi:application", "--host", "0.0.0.0", "--port", "8005", "--workers", "4", "--log-level", "info"]
