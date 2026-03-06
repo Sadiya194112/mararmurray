@@ -8,6 +8,7 @@ class Plant(models.Model):
     description = models.TextField(null=True, blank=True)
 
     # Images
+    image = models.ImageField(upload_to="plant_images/", null=True, blank=True)
     main_image_url = models.URLField(max_length=500, null=True, blank=True)
 
     # Growing conditions

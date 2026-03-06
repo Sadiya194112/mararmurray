@@ -12,7 +12,7 @@ urlpatterns = [
                 path("accounts/", include("apps.accounts.urls")),
                 path("", include("apps.common.urls")),
                 path("plants/", include("apps.plants.urls")),
-                # path("posts/", include("apps.posts.urls")),
+                path("", include("apps.posts.urls")),
             ]
         ),
     ),

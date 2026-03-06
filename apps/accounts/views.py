@@ -313,3 +313,57 @@ def delete_account(request):
         {"message": "Your account has been deleted successfully."},
         status=status.HTTP_200_OK,
     )
+
+
+# ============== User Image APIs ==============
+
+
+@swagger_auto_schema(method="post", tags=["6. User Images"])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def upload_user_image(request):
+    """6.1 Upload user profile image"""
+    user = request.user
+    image_file = request.FILES.get("image")
+    if not image_file:
+        return Response(
+            {"message": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST
+        )
+    user.image = image_file
+    user.save()
+    return Response(
+        {"message": "Profile image uploaded successfully", "image_url": user.image.url},
+        status=status.HTTP_200_OK,
+    )
+
+
+@swagger_auto_schema(method="get", tags=["6. User Images"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def get_user_image(request):
+    """6.2 Get user profile image"""
+    user = request.user
+    if user.image:
+        return Response({"image_url": user.image.url}, status=status.HTTP_200_OK)
+    return Response({"message": "No profile image"}, status=status.HTTP_404_NOT_FOUND)
+
+
+@swagger_auto_schema(method="delete", tags=["6. User Images"])
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def delete_user_image(request):
+    """6.3 Delete user profile image"""
+    user = request.user
+    if user.image:
+        user.image.delete()
+        user.image = None
+        user.save()
+        return Response(
+            {"message": "Profile image deleted successfully"}, status=status.HTTP_200_OK
+        )
+    return Response(
+        {"message": "No profile image to delete"}, status=status.HTTP_404_NOT_FOUND
+    )

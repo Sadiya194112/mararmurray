@@ -1,0 +1,51 @@
+name: Deploy MararMurray to VPS
+
+on:
+    push:
+        branches:
+            - main # আপনি যদি অন্য কোনো ব্রাঞ্চ ব্যবহার করেন তবে সেটি দিন
+
+jobs:
+    build-and-deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v3
+
+            # ১. এই ধাপটি আপনার GitHub রিপোজিটরিকে Docker Hub-এ লগইন করার অনুমতি দেয়।
+            - name: Login to Docker Hub
+              uses: docker/login-action@v2
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            # ২. এই অংশটি আপনার প্রজেক্টের সব ফাইল (context: .) নিয়ে একটি নতুন ডকার ইমেজ তৈরি করে। ইমেজটি তৈরি হওয়ার পর এটি সরাসরি আপনার Docker Hub অ্যাকাউন্টে আপলোড করে দেয়। (পুরনো ক্যাশ ডিলিট সহ)
+            - name: Build and Push Image
+              uses: docker/build-push-action@v4
+              with:
+                  context: .
+                  push: true
+                  no-cache: true # এটি নিশ্চিত করবে আপনার নতুন Uvicorn সেটিংস ইমেজে যাবে
+                  tags: ${{ secrets.DOCKERHUB_USERNAME }}/mararmurray:latest
+
+            # ৩. এই কোডটি GitHub-কে বলছে: "এখন আমার সার্ভারে ঢোকো, আমার লেটেস্ট কোডটা (Docker Image) ইন্টারনেট থেকে নামাও, আর আমার অ্যাপটা আপডেট করে আবার চালু করে দাও। এটি পুরানো কন্টেইনারটি বন্ধ করে নতুন ইমেজটি দিয়ে আপনার Django অ্যাপটি আবার চালু করে।"
+            - name: Deploy to VPS via SSH
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.VPS_HOST }}
+                  username: root
+                  key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+                  script: |
+                      # আপনার প্রজেক্ট ফোল্ডারে প্রবেশ করুন
+                      cd /app/mararmurray
+
+                      # ডকার হাব ইউজারনেম এনভায়রনমেন্ট ভেরিয়েবল হিসেবে সেট করা
+                      export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+
+                      # নতুন ইমেজ পুল করা
+                      docker compose pull
+
+                      # কন্টেইনার আপডেট করা
+                      # এটি নিজে থেকেই django_app আপডেট করবে কিন্তু Nginx এবং SSL সচল রাখবে
+                      docker compose up -d --remove-orphans

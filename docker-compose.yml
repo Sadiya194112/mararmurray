@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: django_db
+    restart: always
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mararmurray_network
+
+  django_app:
+    image: sadiyairin/mararmurray:latest
+    container_name: django_app
+    restart: always
+    expose:
+      - "8005"
+    env_file: .env
+    depends_on:
+      - db
+    volumes:
+      - ./static:/app/static
+      - ./media:/app/media
+
+    command: >
+      sh -c "python manage.py collectstatic --noinput && 
+            # python manage.py migrate && 
+             python -m uvicorn src.asgi:application --host 0.0.0.0 --port 8005"
+    networks:
+      - mararmurray_network #Docker network for inter-container communication
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./static:/app/static:ro
+      - ./media:/app/media:ro
+    depends_on:
+      - django_app
+    networks:
+      - mararmurray_network
+
+networks:
+  mararmurray_network:
+    driver: bridge
+
+volumes:
+  postgres_data: # এই ভলিউমটি আপনার ডেটাবেস পারসিস্টেন্ট রাখবে

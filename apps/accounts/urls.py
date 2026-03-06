@@ -3,12 +3,15 @@ from django.urls import path
 from apps.accounts.views import (
     change_password,
     delete_account,
+    delete_user_image,
     get_profile,
+    get_user_image,
     logout,
     password_reset,
     send_otp,
     signin,
     signup,
+    upload_user_image,
     user_delete,
     user_detail,
     user_update,
@@ -32,4 +35,11 @@ urlpatterns = [
     path(
         "users/<int:user_id>/delete/", user_delete, name="user_delete"
     ),  # Will be deleted by admin
+    # 6. User Image APIs
+    # 6.1 Upload User Image
+    path("profile/image/upload/", upload_user_image, name="upload-user-image"),
+    # 6.2 Get User Image
+    path("profile/image/", get_user_image, name="get-user-image"),
+    # 6.3 Delete User Image
+    path("profile/image/delete/", delete_user_image, name="delete-user-image"),
 ]
