@@ -37,12 +37,10 @@ INSTALLED_APPS = [
     "apps.common",
 ]
 
+# The default schema class should be an AutoSchema/ViewInspector subclass.
+# drf_yasg does not require changing this, so we use the built-in AutoSchema
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    "DEFAULT_SCHEMA_CLASS": "drf_yasg.generators.OpenAPISchemaGenerator",
+    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
 }
 
 MIDDLEWARE = [
