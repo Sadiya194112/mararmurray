@@ -28,7 +28,7 @@ services:
     command: >
       sh -c "python manage.py collectstatic --noinput && 
             # python manage.py migrate && 
-             python -m uvicorn src.asgi:application --host 0.0.0.0 --port 8005"
+             python -m uvicorn core.asgi:application --host 0.0.0.0 --port 8005"
     networks:
       - mararmurray_network #Docker network for inter-container communication
 
