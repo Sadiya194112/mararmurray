@@ -16,6 +16,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://10.10.13.20:8005",
+    "https://api.florle.com",
+]
+CORS_ALLOWED_ORIGINS = [
+    "http://10.10.13.12:5173",
+    "https://dashboard.florle.com",
+]
+
 
 # Application definition
 
