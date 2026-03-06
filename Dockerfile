@@ -10,13 +10,16 @@ ENV PYTHONUNBUFFERED=1
 # uv এর ভার্চুয়াল এনভায়রনমেন্ট সরাসরি ব্যবহারের জন্য পাথ সেট করা
 ENV PATH="/app/.venv/bin:$PATH"
 
-# ৪. সিস্টেম ডিপেন্ডেন্সি ইনস্টল
+
+# ৪. সিস্টেম ডিপেন্ডেন্সি ইনস্টল (OpenCV এর জন্য libgl1 ও libglib2.0-0 যোগ করা হয়েছে)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
     libpq-dev \
     netcat-openbsd \
     poppler-utils \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # ৫. uv ইনস্টল করা
@@ -39,7 +42,7 @@ EXPOSE 8005
 ENV DJANGO_SETTINGS_MODULE=core.settings
 ENV DEBUG=False
 # PYTHONPATH এ /app এবং /app/apps যুক্ত করুন
-ENV PYTHONPATH="/app:/app/apps"
+# ENV PYTHONPATH="/app:/app/apps"
 
 # ১১. রান কমান্ড (সরাসরি python -m uvicorn ব্যবহার করা হচ্ছে যা .venv থেকে আসবে)
 CMD ["python", "-m", "uvicorn", "core.asgi:application", "--host", "0.0.0.0", "--port", "8005", "--workers", "4", "--log-level", "info"]
