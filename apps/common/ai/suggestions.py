@@ -336,14 +336,27 @@ Generate the JSON array now:"""
                 valid_plants = []
                 for plant in plants_data:
                     if isinstance(plant, dict) and "common_name" in plant:
+                        common_name = plant.get("common_name", "Unknown Plant")
+                        
+                        db_plant = Plant.objects.filter(common_name__iexact=common_name).first()
+                        main_image_url = None
+                        if db_plant:
+                            if db_plant.main_image_url:
+                                main_image_url = db_plant.main_image_url
+                            elif db_plant.image:
+                                main_image_url = db_plant.image.url
+                                
+                        if not main_image_url:
+                            main_image_url = f"https://ui-avatars.com/api/?name={common_name.replace(' ', '+')}&background=random&color=fff&size=512"
+
                         cleaned_plant = {
-                            "id": None,  # AI-generated plants don't have DB IDs
-                            "common_name": plant.get("common_name", "Unknown Plant"),
+                            "id": db_plant.id if db_plant else None,
+                            "common_name": common_name,
                             "scientific_name": plant.get("scientific_name", ""),
                             "plant_type": plant.get("plant_type", ""),
                             "description": plant.get("description", ""),
                             "image": None,
-                            "main_image_url": None,
+                            "main_image_url": main_image_url,
                             "sunlight": plant.get("sunlight", sunlight or ""),
                             "water": plant.get("water", "Average"),
                             "spacing": plant.get("spacing", ""),
@@ -518,14 +531,26 @@ Return ONLY a single JSON object (not an array) with all fields populated. Expla
 
                 # Validate and clean the data
                 if isinstance(plant_data, dict) and "common_name" in plant_data:
+                    common_name = plant_data.get("common_name", plant_name)
+                    db_plant = Plant.objects.filter(common_name__iexact=common_name).first()
+                    main_image_url = None
+                    if db_plant:
+                        if db_plant.main_image_url:
+                            main_image_url = db_plant.main_image_url
+                        elif db_plant.image:
+                            main_image_url = db_plant.image.url
+                            
+                    if not main_image_url:
+                        main_image_url = f"https://ui-avatars.com/api/?name={common_name.replace(' ', '+')}&background=random&color=fff&size=512"
+
                     cleaned_plant = {
-                        "id": None,
-                        "common_name": plant_data.get("common_name", plant_name),
+                        "id": db_plant.id if db_plant else None,
+                        "common_name": common_name,
                         "scientific_name": plant_data.get("scientific_name", ""),
                         "plant_type": plant_data.get("plant_type", ""),
                         "description": plant_data.get("description", ""),
                         "image": None,
-                        "main_image_url": None,
+                        "main_image_url": main_image_url,
                         "sunlight": plant_data.get("sunlight", sunlight or ""),
                         "water": plant_data.get("water", "Average"),
                         "spacing": plant_data.get("spacing", ""),
@@ -686,10 +711,22 @@ Return ONLY a JSON object (not an array). Ensure all values match the format sho
 
                 # Validate and clean the data - summary fields only
                 if isinstance(plant_data, dict) and "common_name" in plant_data:
+                    common_name = plant_data.get("common_name", plant_name)
+                    db_plant = Plant.objects.filter(common_name__iexact=common_name).first()
+                    plant_image = None
+                    if db_plant:
+                        if db_plant.main_image_url:
+                            plant_image = db_plant.main_image_url
+                        elif db_plant.image:
+                            plant_image = db_plant.image.url
+                            
+                    if not plant_image:
+                        plant_image = f"https://ui-avatars.com/api/?name={common_name.replace(' ', '+')}&background=random&color=fff&size=512"
+
                     summary_plant = {
-                        "common_name": plant_data.get("common_name", plant_name),
+                        "common_name": common_name,
                         "scientific_name": plant_data.get("scientific_name", ""),
-                        "plant_image": None,  # AI-generated plants don't have actual images
+                        "plant_image": plant_image,
                         "sunlight": plant_data.get("sunlight", sunlight or ""),
                         "water": plant_data.get("water", "Average"),
                         "spacing": plant_data.get("spacing", ""),

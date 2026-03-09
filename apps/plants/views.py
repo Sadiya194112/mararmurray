@@ -24,7 +24,7 @@ def sync_plants_batch_view(request):
     start_id = int(request.data.get("start_id", 1))
 
     count, next_start = PlantSyncService.sync_all_plants(
-        start_id=start_id, batch_size=1
+        start_id=start_id, batch_size=100
     )
 
     return Response(

@@ -7,8 +7,7 @@ from apps.common.views import (
     create_or_update_terms_conditions,
     delete_garden_photo,
     get_ai_plant_suggestions,
-    get_ai_recommendation_details,
-    get_ai_recommendation_summary,
+    get_ai_recommendation_info,
     get_garden_photo,
     get_garden_preference,
     get_garden_project,
@@ -92,17 +91,11 @@ urlpatterns = [
         get_garden_recommendations,
         name="get-garden-recommendations",
     ),
-    # 7.1.2 Get AI Recommendation Summary
+    # 7.1.2 Get AI Recommendation Info (Summary & Details)
     path(
-        "gardens/projects/<int:project_id>/recommendations/summary/",
-        get_ai_recommendation_summary,
-        name="get-ai-recommendation-summary",
-    ),
-    # 7.1.3 Get AI Recommendation Full Details
-    path(
-        "gardens/projects/<int:project_id>/recommendations/details/",
-        get_ai_recommendation_details,
-        name="get-ai-recommendation-details",
+        "gardens/projects/<int:project_id>/recommendations/info/",
+        get_ai_recommendation_info,
+        name="get-ai-recommendation-info",
     ),
     # 7.2 Get AI Plant Suggestions
     path(

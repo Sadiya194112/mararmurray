@@ -10,7 +10,7 @@ class PlantSyncService:
     API_KEY = os.getenv("PERENUAL_API_KEY")
 
     @classmethod
-    def sync_all_plants(cls, start_id=1, batch_size=1):
+    def sync_all_plants(cls, start_id=1, batch_size=100):
         """Sync plants in batches from Perenual API"""
         end_id = start_id + batch_size - 1
         success_count = 0

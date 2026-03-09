@@ -12,8 +12,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.accounts.models import User
-from apps.posts.models import Post
-from apps.posts.serializers import PostDetailSerializer, PostSerializer
+from apps.posts.models import Post, SavedPost
+from apps.posts.serializers import PostDetailSerializer, PostSerializer, SavedPostSerializer
 
 # ============== Post APIs ==============
 
@@ -284,3 +284,44 @@ def get_user_profile(request, user_id):
         },
         status=status.HTTP_200_OK,
     )
+
+
+# ============== Saved Posts APIs ==============
+
+
+@swagger_auto_schema(method="post", tags=["8. Saved Posts"])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def toggle_save_post(request, post_id):
+    """
+    8.1 Toggle save/unsave a post.
+    - If the post is not saved, it saves it and returns saved=True.
+    - If it is already saved, it removes it and returns saved=False.
+    """
+    post = get_object_or_404(Post, id=post_id)
+
+    existing = SavedPost.objects.filter(user=request.user, post=post).first()
+    if existing:
+        existing.delete()
+        return Response(
+            {"saved": False, "message": "Post removed from saved."},
+            status=status.HTTP_200_OK,
+        )
+    else:
+        SavedPost.objects.create(user=request.user, post=post)
+        return Response(
+            {"saved": True, "message": "Post saved successfully."},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@swagger_auto_schema(method="get", tags=["8. Saved Posts"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def list_saved_posts(request):
+    saved = SavedPost.objects.filter(user=request.user).select_related("post")
+    serializer = SavedPostSerializer(saved, many=True, context={"request": request})
+    
+    return Response(serializer.data, status=status.HTTP_200_OK)

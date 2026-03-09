@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from apps.common.ai.main import get_plant_recommendations
 from apps.common.ai.suggestions import GardenAIService
 from apps.common.models import (
     GardenPhoto,
@@ -486,65 +487,17 @@ def get_plant_details(request, project_id):
 @api_view(["POST"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
-def get_ai_recommendation_summary(request, project_id):
+def get_ai_recommendation_info(request, project_id):
     """
-    7.1.2 Get quick summary for a plant recommendation.
-    User clicks a plant name to see key details before viewing full details.
+    7.1.2 Get info for a plant recommendation.
+    User clicks a plant name to see key details (summary),
+    or complete care instructions (full).
 
-    Request body: {"plant_name": "Tomato"}
-    """
-    try:
-        project = GardenProject.objects.get(id=project_id, user=request.user)
-        preference = project.garden_preference
-    except GardenProject.DoesNotExist:
-        return Response(
-            {"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-    except GardenPreference.DoesNotExist:
-        return Response(
-            {
-                "error": "No preferences found for this project. Please save preferences first."
-            },
-            status=status.HTTP_404_NOT_FOUND,
-        )
-
-    plant_name = request.data.get("plant_name")
-    if not plant_name:
-        return Response(
-            {"error": "plant_name is required in request body"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        # Get AI-generated summary for the selected plant
-        plant_summary = GardenAIService.get_ai_plant_summary(preference, plant_name)
-
-        return Response(
-            {
-                "message": f"Quick preview for {plant_name}",
-                "plant_summary": plant_summary,
-                "next_step": "Click 'View Details' to see complete care instructions and all information",
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    except Exception as e:
-        return Response(
-            {"error": f"Failed to retrieve plant summary: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-
-@swagger_auto_schema(method="post", tags=["7. Garden Analysis"])
-@api_view(["POST"])
-@authentication_classes([JWTAuthentication])
-@permission_classes([IsAuthenticated])
-def get_ai_recommendation_details(request, project_id):
-    """
-    7.1.3 Get full details for a specific AI-generated plant recommendation.
-    User views complete information after clicking 'View Details' from summary.
-
-    Request body: {"plant_name": "Tomato"}
+    Request body: 
+    {
+        "plant_name": "Tomato",
+        "type": "summary"  # use "full" for complete details
+    }
     """
     try:
         project = GardenProject.objects.get(id=project_id, user=request.user)
@@ -561,28 +514,73 @@ def get_ai_recommendation_details(request, project_id):
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    req_type = request.data.get("type", "summary")
     plant_name = request.data.get("plant_name")
-    if not plant_name:
+
+    # plant_name is required only for full details
+    if req_type == "full" and not plant_name:
         return Response(
-            {"error": "plant_name is required in request body"},
+            {"error": "plant_name is required in request body when type is 'full'"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     try:
-        # Get AI-generated details for the selected plant
-        plant_details = GardenAIService.get_ai_plant_detail(preference, plant_name)
+        if req_type == "full":
+            # Get AI-generated full details for the selected plant
+            plant_data = GardenAIService.get_ai_plant_detail(preference, plant_name)
+            return Response(
+                {
+                    "message": f"Here are the detailed care instructions for {plant_name}",
+                    "plant_details": plant_data,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            # Build criteria from the user's saved garden preference
+            sunlight = (
+                preference.get_sunlight_display()
+                if hasattr(preference, "get_sunlight_display")
+                else preference.sunlight
+            )
+            garden_type = (
+                preference.get_garden_type_display()
+                if hasattr(preference, "get_garden_type_display")
+                else preference.garden_type
+            )
+            soil_type = (
+                preference.get_soil_type_display()
+                if hasattr(preference, "get_soil_type_display")
+                else preference.soil_type
+            )
 
-        return Response(
-            {
-                "message": f"Here are the detailed care instructions for {plant_name}",
-                "plant_details": plant_details,
-            },
-            status=status.HTTP_200_OK,
-        )
+            user_criteria = {
+                "location": preference.location or "Not specified",
+                "latitude": preference.latitude,
+                "longitude": preference.longitude,
+                "sunlight": sunlight or "Not specified",
+                "soil_type": soil_type or "Not specified",
+                "garden_type": garden_type or "Mixed Garden",
+                "total_area_sq_ft": preference.total_area_sq_ft,
+                "height_ft": preference.height_ft,
+                "width_ft": preference.width_ft,
+            }
+
+            # Use get_plant_recommendations for smarter, space-aware AI summary
+            result = get_plant_recommendations(user_criteria)
+            recommended_plants = result.get("recommended_plants", [])
+
+            return Response(
+                {
+                    "message": "AI-recommended plants based on your garden preferences.",
+                    "plant_summary": recommended_plants,
+                    "next_step": "Send 'type': 'full' with a 'plant_name' in request body to see complete care instructions",
+                },
+                status=status.HTTP_200_OK,
+            )
 
     except Exception as e:
         return Response(
-            {"error": f"Failed to retrieve plant details: {str(e)}"},
+            {"error": f"Failed to retrieve plant info: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -638,6 +636,7 @@ def get_garden_recommendations(request, project_id):
             {
                 "plant_name": plant["common_name"],
                 "plant_image": plant.get("main_image_url"),
+                "plant_growth_size": plant.get("growth_size", ""),
             }
             for plant in recommended_plants
         ]

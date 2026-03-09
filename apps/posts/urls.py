@@ -9,9 +9,11 @@ from apps.posts.views import (
     get_post_image,
     get_trending_hashtags,
     get_user_profile,
+    list_saved_posts,
     list_user_posts,
     search_by_hashtag,
     search_posts,
+    toggle_save_post,
     update_post,
     upload_post_image,
 )
@@ -57,4 +59,9 @@ urlpatterns = [
     path("explore/trending/", get_trending_hashtags, name="trending-hashtags"),
     # 7.5 Get User Profile
     path("explore/user/<int:user_id>/", get_user_profile, name="user-profile"),
+    # 8. Saved Posts APIs
+    # 8.1 Toggle Save/Unsave a Post
+    path("posts/<int:post_id>/save/", toggle_save_post, name="toggle-save-post"),
+    # 8.2 List Saved Posts (for Profile > Saved tab)
+    path("posts/saved/", list_saved_posts, name="list-saved-posts"),
 ]

@@ -80,7 +80,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             "id",
-            # "student_name",
+            "full_name",
             "email",
             "is_active",
             "date_joined",
