@@ -39,6 +39,8 @@ jobs:
                   host: ${{ secrets.VPS_HOST }}
                   username: root
                   key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+                  timeout: 60s
+                  command_timeout: 30m
                   script: |
                       # আপনার প্রজেক্ট ফোল্ডারে প্রবেশ করুন
                       cd /app/mararmurray
