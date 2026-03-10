@@ -196,8 +196,8 @@ user_questionnaire_answers = {
 }
 
 
-recommendations = get_plant_recommendations(user_questionnaire_answers)
-print(json.dumps(recommendations, indent=4))
+# recommendations = get_plant_recommendations(user_questionnaire_answers)
+# print(json.dumps(recommendations, indent=4))
 
 # missing_data_json = get_missing_plant_info(dynamic_input, keys_to_fill)
 # print(json.dumps(missing_data_json, indent=4))

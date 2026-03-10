@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "apps.plants",
     "apps.posts",
     "apps.common",
+    "ai_plant_engine.harvester",
 ]
 
 # The default schema class should be an AutoSchema/ViewInspector subclass.

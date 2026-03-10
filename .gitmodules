@@ -1,0 +1,3 @@
+[submodule "ai_plant_engine"]
+	path = ai_plant_engine
+	url = https://github.com/khsuzan/ai_plant_engine.git
