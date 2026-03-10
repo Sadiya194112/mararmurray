@@ -41,6 +41,7 @@ EXPOSE 8005
 # ১০. প্রোডাকশন সেটিংস
 ENV DJANGO_SETTINGS_MODULE=core.settings
 ENV DEBUG=False
+ENV PYTHONPATH="/app:/app/apps:/app/ai_plant_engine"
 # PYTHONPATH এ /app এবং /app/apps যুক্ত করুন
 # ENV PYTHONPATH="/app:/app/apps"
 
