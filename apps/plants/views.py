@@ -17,34 +17,118 @@ from apps.plants.services import PlantSyncService
 # ============== Plant APIs ==============
 
 
-@swagger_auto_schema(method="post", tags=["4. Plants"])
-@api_view(["POST"])
-def sync_plants_batch_view(request):
-    # রিকোয়েস্ট থেকে start_id নিন, না থাকলে ডিফল্ট ১
-    start_id = int(request.data.get("start_id", 1))
+SUNLIGHT_CHOICES = ["full_sun", "partial_sun", "full_shade"]
 
-    count, next_start = PlantSyncService.sync_all_plants(
-        start_id=start_id, batch_size=100
-    )
+SOIL_TYPE_CHOICES = ["sandy", "clay", "loam", "not_sure"]
+
+GARDEN_TYPE_CHOICES = ["flower_garden", "vegetable_garden", "herb_garden", "mixed_garden"]
+
+COLOR_CHOICES = [
+    "no_preference",
+    "pink",
+    "red",
+    "yellow",
+    "purple",
+    "white",
+    "orange",
+    "green",
+]
+
+
+@swagger_auto_schema(method="get", tags=["4. Plants"])
+@api_view(["GET"])
+def plants(request):
+    """
+    | Param         | Valid values |
+    |---|---|
+    | `sunlight`    | `full_sun` · `partial_sun` · `full_shade` |
+    | `soil_type`   | `sandy` · `clay` · `loam` · `not_sure` |
+    | `garden_type` | `flower_garden` · `vegetable_garden` · `herb_garden` · `mixed_garden` |
+    | `color`       | `no_preference` · `pink` · `red` · `yellow` · `purple` · `white` · `orange` · `green` |
+    | `page`        | Page number (default: 1) |
+    | `limit`       | Items per page (default: 10, max: 50) |
+    """
+
+    sunlight    = request.query_params.get("sunlight")
+    soil_type   = request.query_params.get("soil_type")
+    garden_type = request.query_params.get("garden_type")
+    color       = request.query_params.get("color")
+
+    errors = {}
+    if sunlight and sunlight not in SUNLIGHT_CHOICES:
+        errors["sunlight"] = f"Invalid choice. Must be one of: {SUNLIGHT_CHOICES}"
+    if soil_type and soil_type not in SOIL_TYPE_CHOICES:
+        errors["soil_type"] = f"Invalid choice. Must be one of: {SOIL_TYPE_CHOICES}"
+    if garden_type and garden_type not in GARDEN_TYPE_CHOICES:
+        errors["garden_type"] = f"Invalid choice. Must be one of: {GARDEN_TYPE_CHOICES}"
+    if color and color not in COLOR_CHOICES:
+        errors["color"] = f"Invalid choice. Must be one of: {COLOR_CHOICES}"
+
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    queryset = Plant.objects.all().order_by("id")
+
+    if sunlight:
+        queryset = queryset.filter(sunlight=sunlight)
+    if soil_type:
+        queryset = queryset.filter(soil_type=soil_type)
+    if garden_type:
+        queryset = queryset.filter(garden_type=garden_type)
+  
+    if color and color != "no_preference":
+        queryset = queryset.filter(tags__icontains=color.replace("_", " "))
+
+    try:
+        page  = max(1, int(request.query_params.get("page",  1)))
+        limit = max(1, min(50, int(request.query_params.get("limit", 10))))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "page and limit must be integers."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    total       = queryset.count()
+    total_pages = (total + limit - 1) // limit if total else 1
+    offset      = (page - 1) * limit
+    page_qs     = queryset[offset: offset + limit]
+
+    plants_data = []
+    for plant in page_qs:
+        image_url = None
+        if plant.image:
+            image_url = request.build_absolute_uri(plant.image.url)
+        elif plant.main_image_url:
+            image_url = plant.main_image_url
+
+        plants_data.append({
+            "id":      plant.pk,
+            "name":    plant.common_name,
+            "scientific_name": plant.scientific_name or "",
+            "spacing": plant.spacing or "",   # e.g. "18-24 inches"
+            "sunlight": plant.sunlight or "",  # e.g. "full_sun"
+            "water": plant.water or "",        # e.g. "High water"
+            "soil_type": plant.soil_type or "",  # e.g. "sandy"
+            "garden_type": plant.garden_type or "",  # e.g. "flower_garden"
+            "image":   image_url,
+        })
 
     return Response(
         {
-            "message": f"{count} plants synced successfully.",
-            "next_start_id": next_start + 1,
-        }
+            "page":        page,
+            "limit":       limit,
+            "total":       total,
+            "total_pages": total_pages,
+            "plant":      plants_data,
+        },
+        status=status.HTTP_200_OK,
     )
 
 
 @swagger_auto_schema(method="get", tags=["4. Plants"])
 @api_view(["GET"])
-def plant_detail_view(request, plant_id):
-    """Return serialized details for a single plant.
-
-    The URL passes the plant's primary key as ``pk``. The view is intentionally
-    open so that anyone (authenticated or not) can inspect plant data. If the
-    object does not exist we return a 404 response.
-    """
-
+def plant_detail(request, plant_id):
     plant = get_object_or_404(Plant, pk=plant_id)
     serializer = PlantSerializer(plant)
     return Response(serializer.data)
@@ -113,3 +197,4 @@ def delete_plant_image(request, plant_id):
     return Response(
         {"message": "No plant image to delete"}, status=status.HTTP_404_NOT_FOUND
     )
+

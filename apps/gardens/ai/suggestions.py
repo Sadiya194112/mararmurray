@@ -252,22 +252,12 @@ Please provide only the selected plant names as a simple comma-separated list. C
 
             plant_context_json = json.dumps(plant_context, indent=2)
 
-            # Get preference display values
-            sunlight = (
-                preference.get_sunlight_display()
-                if hasattr(preference, "get_sunlight_display")
-                else preference.sunlight
-            )
-            garden_type = (
-                preference.get_garden_type_display()
-                if hasattr(preference, "get_garden_type_display")
-                else preference.garden_type
-            )
-            soil = (
-                preference.get_soil_type_display()
-                if hasattr(preference, "get_soil_type_display")
-                else preference.soil_type
-            )
+            from apps.gardens.models import GardenProject as GP
+
+            sunlight_display = dict(GP.SUNLIGHT_CHOICES).get(project.sunlight, project.sunlight)
+            garden_type_display = dict(GP.GARDEN_TYPE_CHOICES).get(project.garden_type, project.garden_type)
+            soil_display = dict(GP.SOIL_CHOICES).get(project.soil_type, project.soil_type)
+            colors_str = ", ".join(project.plant_colors) if project.plant_colors else "No preference"
 
             # STEP 3: Augment prompt with real plant data as examples
             prompt = f"""You are an expert horticulturist. Generate detailed plant recommendations following EXACTLY the same format and structure as these real plants from our database:
@@ -278,11 +268,12 @@ REAL PLANT EXAMPLES (follow this exact JSON format):
 Based on these garden preferences, generate 10-12 NEW highly detailed plant recommendations in the EXACT same JSON format:
 
 Garden Preferences:
-- Garden Type: {garden_type or "Mixed"}
-- Sunlight: {sunlight or "Not specified"}
-- Soil Type: {soil or "Not specified"}
-- Location: {preference.location or "Not specified"}
-- Garden Area: {preference.total_area_sq_ft or "Not specified"} sq ft
+- Garden Type: {garden_type_display or "Mixed"}
+- Sunlight: {sunlight_display or "Not specified"}
+- Soil Type: {soil_display or "Not specified"}
+- Preferred Plant Colors: {colors_str}
+- Location: {project.location or "Not specified"}
+- Garden Area: {project.total_area_sq_ft or "Not specified"} sq ft
 
 IMPORTANT RULES:
 1. Generate NEW plants (not from the examples above)
