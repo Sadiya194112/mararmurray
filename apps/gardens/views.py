@@ -132,17 +132,30 @@ def list_garden_projects(request):
     serializer = GardenProjectSerializer(projects, many=True)
     return Response(serializer.data)
 
-@api_view(["GET", "DELETE"])
+
+@api_view(["GET", "PATCH", "DELETE"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
-def garden_project_detail(request, pk):
-    project = get_object_or_404(GardenProject, pk=pk, user=request.user)
+def garden_project_action(request, project_id):
+    project = get_object_or_404(GardenProject, id=project_id, user=request.user)
+
     if request.method == "GET":
         serializer = GardenProjectSerializer(project)
         return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = GardenProjectSerializer(project, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     elif request.method == "DELETE":
         project.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"message": "Project deleted successfully"}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 
 
