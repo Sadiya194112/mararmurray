@@ -134,6 +134,7 @@ def list_garden_projects(request):
 
 
 # ─────────────────────────────────────────────
+
 @api_view(["GET", "PATCH", "DELETE"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
