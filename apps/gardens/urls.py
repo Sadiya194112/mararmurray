@@ -4,7 +4,7 @@ from apps.gardens.views import (
     upload_garden_photo,
     list_garden_projects,
     garden_project_detail,
-    compose_garden
+    compose_garden_and_save
 )
 
 urlpatterns = [
@@ -16,5 +16,5 @@ urlpatterns = [
     # Photo standalone APIs
     path("photos/upload/", upload_garden_photo, name="upload-garden-photo"),
 
-    path("compose/garden/", compose_garden, name="compose-garden"),
+    path("compose/garden/", compose_garden_and_save, name="compose-garden"),
 ]

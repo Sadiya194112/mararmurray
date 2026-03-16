@@ -9,8 +9,9 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
-from apps.gardens.models import GardenPhoto, GardenProject
+from ai_plant_engine.composer.engine import PlantComposer
+from apps.gardens.models import GardenPhoto, GardenProject, GardenPlant
+from apps.plants.models import Plant
 from apps.gardens.serializers import GardenProjectSerializer, GardenPhotoSerializer
 from apps.gardens.ai.main import analyze_image_quality
 
@@ -55,7 +56,12 @@ def create_garden_project(request):
         # ২. যদি ইউজার সরাসরি নতুন ফাইল আপলোড করে
         elif image_file:
             # অস্থায়ীভাবে সেভ করছি পাথ পাওয়ার জন্য
-            temp_photo = GardenPhoto.objects.create(user=request.user, image=image_file)
+            temp_photo = GardenPhoto.objects.create(
+    user=request.user, 
+    image=image_file,
+    quality_status="pending", # স্পষ্টভাবে বলে দিন
+    quality_score=0
+)
             try:
                 quality_report = analyze_image_quality(temp_photo.image.path)
                 if not quality_report.get('is_good_quality'):
@@ -141,9 +147,107 @@ def garden_project_detail(request, pk):
 
 
 
+# AI Blending and Composing
+
+def _base64_to_file(data, name):
+    """Base64 স্ট্রিং থেকে Django ফাইল অবজেক্টে রূপান্তর করার হেল্পার"""
+    try:
+        format, imgstr = data.split(';base64,') if ';base64,' in data else (None, data)
+        return ContentFile(base64.b64decode(imgstr), name=name)
+    except Exception:
+        return None
+
+
+
 @swagger_auto_schema(method="post", tags=["3. Garden Project"])
 @api_view(["POST"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
-def compose_garden(request):
-    pass    
+def compose_garden_and_save(request):
+    """
+    ইতিমধ্যেই তৈরি করা GardenProject-এ AI জেনারেটেড ইমেজ আপডেট করার এপিআই।
+    """
+    data = request.data
+    project_id = data.get('project_id')
+    plants_input = data.get('plants', [])
+ 
+    # ১. বিদ্যমান প্রজেক্টটি খুঁজে বের করা
+    project = get_object_or_404(GardenProject, id=project_id, user=request.user)
+ 
+    if not project.photo or not plants_input:
+        return Response({"error": "Garden photo and plants are required."}, status=status.HTTP_400_BAD_REQUEST)
+ 
+    # ২. AI Composer এর জন্য ডাটা প্রস্তুত করা
+    plant_list_for_ai = []
+    resolved_plants = []
+    garden_photo_url = request.build_absolute_uri(project.photo.url)
+ 
+    for item in plants_input:
+        try:
+            plant = Plant.objects.get(id=item['plant_id'])
+            # Fetch the absolute URL for the image
+            img_url = request.build_absolute_uri(plant.image.url) if plant.image else plant.main_image_url
+ 
+            plant_list_for_ai.append({
+                "image": img_url,
+                "x": item['x'],
+                "y": item['y'],
+                "scale": item.get('scale', 1.0)
+            })
+            resolved_plants.append({
+                "instance": plant,
+                "x": item['x'], "y": item['y'], "scale": item.get('scale', 1.0)
+            })
+        except Plant.DoesNotExist:
+            continue
+ 
+    # ৩. AI Composer কল করা (Updated for Hugging Face)
+    try:
+        # Changed from OPENAI_API_KEY to STABILITY_API_KEY
+        api_key = os.getenv('STABILITY_API_KEY')
+        if not api_key:
+            return Response({"error": "Stability API key not configured in .env"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+ 
+        # Initialize the new Hugging Face composer
+        composer = PlantComposer(stability_api_key=api_key)
+
+        # This will now hit the free Hugging Face Inference API
+        ai_result = composer.compose_plants(
+            garden_image=garden_photo_url,
+            plants=plant_list_for_ai
+        )
+    except Exception as e:
+        return Response({"error": f"AI Blending failed: {str(e)}"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+ 
+    # ৪. এক্সিস্টিং প্রজেক্টে ইমেজ আপডেট করা
+    if ai_result.get('blended_image'):
+        # Because we send a base64 string directly from HF, your helper will decode it perfectly
+        project.blended_image.save(
+            f"garden_{project.id}_blended.jpg",
+            _base64_to_file(ai_result['blended_image'], 'blended.jpg'),
+            save=False
+        )
+    if ai_result.get('composite_image'):
+        project.composite_image.save(
+            f"garden_{project.id}_composite.jpg",
+            _base64_to_file(ai_result['composite_image'], 'composite.jpg'),
+            save=False
+        )
+ 
+    # শুধু নির্দিষ্ট ফিল্ডগুলো আপডেট করা
+    project.save(update_fields=['blended_image', 'composite_image', 'updated_at'])
+ 
+    # ৫. GardenPlant টেবিলে পজিশন সেভ করা (যদি আগে থাকে তবে ডুপ্লিকেট এড়াতে ডিলিট করে নতুন করা যেতে পারে)
+    GardenPlant.objects.filter(project=project).delete() # আগের ডিজাইন মুছে নতুনটি সেভ করা
+    for p in resolved_plants:
+        GardenPlant.objects.create(
+            project=project,
+            plant=p['instance'],
+            x=p['x'],
+            y=p['y'],
+            scale=p['scale']
+        )
+ 
+    # Return the updated project via the serializer
+    serializer = GardenProjectSerializer(project, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_200_OK)

@@ -126,25 +126,25 @@ class GardenProject(models.Model):
 # Garden Plant placement
 # ─────────────────────────────────────────────────────────────────────────────
 
-# class GardenPlant(models.Model):
-#     """
-#     A single plant placed inside a GardenProject at a specific position.
-#     x, y are relative (0.0–1.0) from the top-left of the garden image.
-#     """
+class GardenPlant(models.Model):
+    """
+    A single plant placed inside a GardenProject at a specific position.
+    x, y are relative (0.0–1.0) from the top-left of the garden image.
+    """
 
-#     project = models.ForeignKey(
-#         GardenProject, on_delete=models.CASCADE, related_name="plants"
-#     )
-#     plant = models.ForeignKey(
-#         Plant, on_delete=models.CASCADE, related_name="garden_appearances"
-#     )
+    project = models.ForeignKey(
+        GardenProject, on_delete=models.CASCADE, related_name="plants"
+    )
+    plant = models.ForeignKey(
+        Plant, on_delete=models.CASCADE, related_name="garden_appearances"
+    )
 
-#     x = models.FloatField(default=0.5, help_text="Relative X position (0.0–1.0)")
-#     y = models.FloatField(default=0.5, help_text="Relative Y position (0.0–1.0)")
-#     scale = models.FloatField(default=1.0, help_text="Scale factor (1.0 = natural size)")
+    x = models.FloatField(default=0.5, help_text="Relative X position (0.0–1.0)")
+    y = models.FloatField(default=0.5, help_text="Relative Y position (0.0–1.0)")
+    scale = models.FloatField(default=1.0, help_text="Scale factor (1.0 = natural size)")
 
-#     class Meta:
-#         ordering = ["id"]
+    class Meta:
+        ordering = ["id"]
 
-#     def __str__(self):
-#         return f"{self.plant.common_name} in {self.project.name}"
+    def __str__(self):
+        return f"{self.plant.common_name} in {self.project.name}"
