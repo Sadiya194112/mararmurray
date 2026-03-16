@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.gardens",
     "ai_plant_engine.harvester",
     "ai_plant_engine.composer",
+    "corsheaders"
 ]
 
 # The default schema class should be an AutoSchema/ViewInspector subclass.
@@ -57,6 +58,7 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
