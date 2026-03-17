@@ -12,8 +12,13 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.accounts.models import User
+from apps.gardens.models import GardenProject
 from apps.posts.models import Post, SavedPost
-from apps.posts.serializers import PostDetailSerializer, PostSerializer, SavedPostSerializer
+from apps.posts.serializers import (
+    PostDetailSerializer,
+    PostSerializer,
+    SavedPostSerializer,
+)
 
 # ============== Post APIs ==============
 
@@ -24,13 +29,30 @@ from apps.posts.serializers import PostDetailSerializer, PostSerializer, SavedPo
 @authentication_classes([JWTAuthentication])
 def create_post(request):
     """5.1 Create post with description and optional image"""
-    serializer = PostSerializer(data=request.data, context={"request": request})
+    data = request.data.copy()
+    project_id = data.get("garden_project")
+    selected_project = None
+
+    if project_id:
+        selected_project = get_object_or_404(
+            GardenProject,
+            id=project_id,
+            user=request.user,
+        )
+
+    serializer = PostSerializer(data=data, context={"request": request})
     if serializer.is_valid():
-        serializer.save(user=request.user)
+        post = serializer.save(user=request.user, garden_project=selected_project)
+
+        if selected_project and selected_project.photo:
+            post.image = selected_project.photo
+            post.save(update_fields=["image", "updated_at"])
+
+        response_serializer = PostSerializer(post, context={"request": request})
         return Response(
             {
                 "message": "Post created successfully",
-                "data": serializer.data,
+                "data": response_serializer.data,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -182,6 +204,16 @@ def explore_feed(request):
 @swagger_auto_schema(method="get", tags=["7. Explore"])
 @api_view(["GET"])
 @permission_classes([AllowAny])
+def explore_post_detail(request, post_id):
+    """7.6 Get single explore post detail with linked garden plant info"""
+    post = get_object_or_404(Post, id=post_id)
+    serializer = PostDetailSerializer(post, context={"request": request})
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(method="get", tags=["7. Explore"])
+@api_view(["GET"])
+@permission_classes([AllowAny])
 def search_posts(request):
     """7.2 Search posts by description, tags, or user"""
     query = request.GET.get("q", "")
@@ -323,5 +355,5 @@ def toggle_save_post(request, post_id):
 def list_saved_posts(request):
     saved = SavedPost.objects.filter(user=request.user).select_related("post")
     serializer = SavedPostSerializer(saved, many=True, context={"request": request})
-    
+
     return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,12 +1,20 @@
 from django.db import models
 
 from apps.accounts.models import User
+from apps.gardens.models import GardenProject
 
 
 class Post(models.Model):
     """Model for user posts with images."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
+    garden_project = models.ForeignKey(
+        GardenProject,
+        on_delete=models.SET_NULL,
+        related_name="posts",
+        null=True,
+        blank=True,
+    )
     description = models.TextField(null=True, blank=True)
     image = models.ImageField(upload_to="post_images/", null=True, blank=True)
     tags = models.CharField(
@@ -42,4 +50,3 @@ class SavedPost(models.Model):
 
     def __str__(self):
         return f"{self.user.email} saved post {self.post.id}"
-
