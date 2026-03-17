@@ -7,6 +7,11 @@ from apps.gardens.models import GardenProject
 class Post(models.Model):
     """Model for user posts with images."""
 
+    STATUS_CHOICES = [
+        ("published", "Published"),
+        ("flagged", "Flagged"),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
     garden_project = models.ForeignKey(
         GardenProject,
@@ -22,6 +27,11 @@ class Post(models.Model):
         blank=True,
         null=True,
         help_text="Comma-separated hashtags (e.g. #Rose,#Garden,#Spring)",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="published",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

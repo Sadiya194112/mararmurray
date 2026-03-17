@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import authenticate
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.timezone import now
@@ -226,26 +226,67 @@ def password_reset(request):
 @permission_classes([IsAdminUser])
 @authentication_classes([JWTAuthentication])
 def users(request):
-    search = request.GET.get("search", "")
-    # plan = request.GET.get("plan", "").lower()
+    """Admin users list with pagination and search by name/email."""
+    search = request.GET.get("search", "").strip()
+    page = request.GET.get("page", "1")
+    limit = request.GET.get("limit", "10")
 
-    users = User.objects.all()
-
-    # if plan in ["free", "pro"]:
-    #     subscriptions = Subscription.objects.filter(is_active=True, plan__name__iexact=plan)
-    #     user_ids = subscriptions.values_list("user_id", flat=True).distinct()
-    #     users = users.filter(id__in=user_ids)
-
-    # Apply search filter
-    if search:
-        users = users.filter(
-            Q(name__icontains=search)
-            | Q(email__icontains=search)
-            | Q(phone__icontains=search)
+    try:
+        page = int(page)
+        limit = int(limit)
+    except ValueError:
+        return Response(
+            {"error": "page and limit must be integers"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
-    serializer = UserSerializer(users, many=True, context={"request": request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    if page < 1 or limit < 1:
+        return Response(
+            {"error": "page and limit must be greater than 0"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    queryset = User.objects.annotate(
+        projects_count=Count("garden_projects", distinct=True),
+        posts_count=Count("posts", distinct=True),
+    ).order_by("-date_joined")
+
+    if search:
+        queryset = queryset.filter(
+            Q(full_name__icontains=search)
+            | Q(username__icontains=search)
+            | Q(email__icontains=search)
+        )
+
+    total = queryset.count()
+    start = (page - 1) * limit
+    end = start + limit
+    items = queryset[start:end]
+
+    data = [
+        {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "image": request.build_absolute_uri(user.image.url) if user.image else None,
+            "status": "active" if user.is_active else "inactive",
+            "projects_count": user.projects_count,
+            "posts_count": user.posts_count,
+            "joined": user.date_joined,
+        }
+        for user in items
+    ]
+
+    return Response(
+        {
+            "data": data,
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @swagger_auto_schema(method="get", tags=["Accounts"])
@@ -253,9 +294,75 @@ def users(request):
 @permission_classes([IsAdminUser])
 @authentication_classes([JWTAuthentication])
 def user_detail(request, user_id):
+    """Admin user detail with account + activity summary."""
     user = get_object_or_404(User, id=user_id)
-    serializer = UserSerializer(user, context={"request": request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    gardens_created = user.garden_projects.count()
+    posts_count = user.posts.count()
+
+    return Response(
+        {
+            "id": user.id,
+            "full_name": user.full_name,
+            "username": user.username,
+            "email": user.email,
+            "website": user.website,
+            "location": user.location,
+            "role": user.role,
+            "image": request.build_absolute_uri(user.image.url) if user.image else None,
+            "status": "active" if user.is_active else "inactive",
+            "is_active": user.is_active,
+            "joined": user.date_joined,
+            "last_login": user.last_login,
+            "activity": {
+                "gardens_created": gardens_created,
+                "posts": posts_count,
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@swagger_auto_schema(
+    method="patch", request_body=UserUpdateSerializer, tags=["Accounts"]
+)
+@api_view(["PATCH"])
+@permission_classes([IsAdminUser])
+@authentication_classes([JWTAuthentication])
+def user_edit(request, user_id):
+    """Admin edit user profile fields."""
+    user = get_object_or_404(User, id=user_id)
+    serializer = UserUpdateSerializer(
+        user, data=request.data, partial=True, context={"request": request}
+    )
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {
+                "message": "User updated successfully.",
+                "data": UserSerializer(user, context={"request": request}).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(method="patch", tags=["Accounts"])
+@api_view(["PATCH"])
+@permission_classes([IsAdminUser])
+@authentication_classes([JWTAuthentication])
+def user_deactivate(request, user_id):
+    """Admin deactivate user account."""
+    user = get_object_or_404(User, id=user_id)
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    return Response(
+        {
+            "message": "User deactivated successfully.",
+            "id": user.id,
+            "is_active": user.is_active,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @swagger_auto_schema(method="delete", tags=["Accounts"])
