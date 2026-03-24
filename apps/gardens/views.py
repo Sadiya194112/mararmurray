@@ -1,5 +1,6 @@
 import base64
 import logging
+import os
 
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
@@ -14,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from ai_plant_engine.composer.engine import PlantComposer
 from apps.gardens.ai.main import analyze_image_quality
 from apps.gardens.models import GardenPhoto, GardenPlant, GardenProject
 from apps.gardens.serializers import (
@@ -269,42 +271,42 @@ def compose_garden_and_save(request):
     # ৩. AI Composer কল করা (Updated for Hugging Face)
     # Need to uncomment later
 
-    # try:
-    #     # Changed from OPENAI_API_KEY to STABILITY_API_KEY
-    #     api_key = os.getenv("STABILITY_API_KEY")
-    #     if not api_key:
-    #         return Response(
-    #             {"error": "Stability API key not configured in .env"},
-    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         )
+    try:
+        # Changed from OPENAI_API_KEY to STABILITY_API_KEY
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return Response(
+                {"error": "OpenAI API key not configured in .env"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-    #     # Initialize the new Hugging Face composer
-    #     composer = PlantComposer(stability_api_key=api_key)
+        # Initialize the new Hugging Face composer
+        composer = PlantComposer(openai_api_key=api_key)
 
-    #     # This will now hit the free Hugging Face Inference API
-    #     ai_result = composer.compose_plants(
-    #         garden_image=garden_photo_url, plants=plant_list_for_ai
-    #     )
-    # except Exception as e:
-    #     return Response(
-    #         {"error": f"AI Blending failed: {str(e)}"},
-    #         status=status.HTTP_503_SERVICE_UNAVAILABLE,
-    #     )
+        # This will now hit the free Hugging Face Inference API
+        ai_result = composer.compose_plants(
+            garden_image_path=garden_photo_url, plants=plant_list_for_ai
+        )
+    except Exception as e:
+        return Response(
+            {"error": f"AI Blending failed: {str(e)}"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
-    # # ৪. এক্সিস্টিং প্রজেক্টে ইমেজ আপডেট করা
-    # if ai_result.get("blended_image"):
-    #     # Because we send a base64 string directly from HF, your helper will decode it perfectly
-    #     project.blended_image.save(
-    #         f"garden_{project.id}_blended.jpg",
-    #         _base64_to_file(ai_result["blended_image"], "blended.jpg"),
-    #         save=False,
-    #     )
-    # if ai_result.get("composite_image"):
-    #     project.composite_image.save(
-    #         f"garden_{project.id}_composite.jpg",
-    #         _base64_to_file(ai_result["composite_image"], "composite.jpg"),
-    #         save=False,
-    #     )
+    # ৪. এক্সিস্টিং প্রজেক্টে ইমেজ আপডেট করা
+    if ai_result.get("blended_image"):
+        # Because we send a base64 string directly from HF, your helper will decode it perfectly
+        project.blended_image.save(
+            f"garden_{project.id}_blended.jpg",
+            _base64_to_file(ai_result["blended_image"], "blended.jpg"),
+            save=False,
+        )
+    if ai_result.get("composite_image"):
+        project.composite_image.save(
+            f"garden_{project.id}_composite.jpg",
+            _base64_to_file(ai_result["composite_image"], "composite.jpg"),
+            save=False,
+        )
 
     # শুধু নির্দিষ্ট ফিল্ডগুলো আপডেট করা
     project.save(update_fields=["blended_image", "composite_image", "updated_at"])

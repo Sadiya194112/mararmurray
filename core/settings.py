@@ -24,7 +24,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://10.10.13.12:5173",
     "https://dashboard.florle.com",
     "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
 ]
 
 
@@ -47,9 +47,11 @@ INSTALLED_APPS = [
     "apps.posts",
     "apps.common",
     "apps.gardens",
+    "apps.scheduler",
     "ai_plant_engine.harvester",
     "ai_plant_engine.composer",
-    "corsheaders"
+    "ai_plant_engine.plant_scheduler",
+    "corsheaders",
 ]
 
 # The default schema class should be an AutoSchema/ViewInspector subclass.

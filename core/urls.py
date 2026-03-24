@@ -36,6 +36,7 @@ urlpatterns = [
                 path("accounts/", include("apps.accounts.urls")),
                 path("", include("apps.common.urls")),
                 path("plants/", include("apps.plants.urls")),
+                path("scheduler/", include("apps.scheduler.urls")),
                 path("", include("apps.gardens.urls")),
                 path("", include("apps.posts.urls")),
             ]
