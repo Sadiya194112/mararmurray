@@ -1,20 +1,62 @@
 from rest_framework import serializers
-from apps.gardens.models import GardenPhoto, GardenProject
+
+from apps.gardens.models import GardenPhoto, GardenPlant, GardenProject
 from apps.plants.serializers import PlantSerializer
+
 
 class GardenProjectSerializer(serializers.ModelSerializer):
     """Serializer for creating and retrieving garden projects."""
+
     class Meta:
         model = GardenProject
         fields = [
-            'id', 'name', 'photo', 'location', 'sunlight', 
-            'soil_type', 'garden_type', 'height_ft', 'width_ft', 'total_area_sq_ft',
-            'blended_image', 'composite_image', 'created_at', 'updated_at'
+            "id",
+            "name",
+            "photo",
+            "location",
+            "sunlight",
+            "soil_type",
+            "garden_type",
+            "height_ft",
+            "width_ft",
+            "total_area_sq_ft",
+            "blended_image",
+            "composite_image",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'blended_image', 'composite_image']
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "blended_image",
+            "composite_image",
+        ]
+
+
+class GardenPlantDetailSerializer(serializers.ModelSerializer):
+    """Serializer for a placed plant inside a garden project."""
+
+    plant = PlantSerializer(read_only=True)
+    plant_id = serializers.IntegerField(source="plant.id", read_only=True)
+
+    class Meta:
+        model = GardenPlant
+        fields = ["id", "plant_id", "plant", "x", "y", "scale"]
+
+
+class GardenProjectDetailSerializer(GardenProjectSerializer):
+    """Serializer for a single garden project with all placed plants."""
+
+    plants = GardenPlantDetailSerializer(many=True, read_only=True)
+
+    class Meta(GardenProjectSerializer.Meta):
+        fields = GardenProjectSerializer.Meta.fields + ["plants"]
+
 
 class GardenPhotoSerializer(serializers.ModelSerializer):
     """Serializer for uploading and analyzing garden photos."""
+
     class Meta:
         model = GardenPhoto
         fields = [
@@ -33,8 +75,10 @@ class GardenPhotoSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+
 class GardenListSerializer(serializers.ModelSerializer):
     """Lightweight serializer used in list views."""
+
     blended_image_url = serializers.SerializerMethodField()
 
     class Meta:
