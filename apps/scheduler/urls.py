@@ -9,10 +9,14 @@ from apps.scheduler.views import (
     project_calendar_day,
     project_timeline,
     task_detail,
+    upcoming_tasks,
     update_task_status,
+    user_home_stats,
 )
 
 urlpatterns = [
+    path("home/stats/", user_home_stats, name="user-home-stats"),
+    path("home/upcoming-tasks/", upcoming_tasks, name="upcoming-tasks"),
     path("generate/", generate_schedule, name="generate-schedule"),
     path("notifications/", create_notification, name="create-notification"),
     path(

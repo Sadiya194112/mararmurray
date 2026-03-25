@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.scheduler.models import GardenSchedule, ScheduleMilestone, ScheduleTask
@@ -135,6 +136,64 @@ class ScheduleMilestoneDetailSerializer(ScheduleMilestoneListSerializer):
 
     class Meta(ScheduleMilestoneListSerializer.Meta):
         fields = ScheduleMilestoneListSerializer.Meta.fields + ["tasks"]
+
+
+class UpcomingTaskSerializer(serializers.ModelSerializer):
+    """Flat serializer for the Upcoming Tasks list screen."""
+
+    project_name = serializers.SerializerMethodField()
+    plant_image = serializers.SerializerMethodField()
+    plant_name = serializers.SerializerMethodField()
+    due_label = serializers.SerializerMethodField()
+    task_type = serializers.CharField(source="get_task_type_display")
+    priority = serializers.CharField(source="get_priority_display")
+    task_status = serializers.CharField(source="get_status_display")
+
+    class Meta:
+        model = ScheduleTask
+        fields = [
+            "id",
+            "title",
+            "task_type",
+            "priority",
+            "task_status",
+            "duration_minutes",
+            "due_date",
+            "due_label",
+            "project_name",
+            "plant_name",
+            "plant_image",
+        ]
+
+    def get_project_name(self, obj):
+        try:
+            return obj.milestone.schedule.project.name
+        except AttributeError:
+            return obj.milestone.schedule.title
+
+    def get_plant_name(self, obj):
+        return obj.plant.common_name if obj.plant else None
+
+    def get_plant_image(self, obj):
+        request = self.context.get("request")
+        if not obj.plant:
+            return None
+        if obj.plant.image and request:
+            return request.build_absolute_uri(obj.plant.image.url)
+        return obj.plant.main_image_url
+
+    def get_due_label(self, obj):
+        if not obj.due_date:
+            return None
+        today = timezone.now().date()
+        delta = (obj.due_date - today).days
+        if delta == 0:
+            return "Today"
+        if delta == 1:
+            return "Tomorrow"
+        if delta > 1:
+            return obj.due_date.strftime("%b %d")
+        return "Overdue"
 
 
 class GardenScheduleSerializer(serializers.ModelSerializer):

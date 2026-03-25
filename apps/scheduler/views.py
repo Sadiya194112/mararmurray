@@ -24,6 +24,7 @@ from apps.scheduler.serializers import (
     ScheduleRequestSerializer,
     ScheduleTaskDetailSerializer,
     ScheduleTaskSummarySerializer,
+    UpcomingTaskSerializer,
 )
 from apps.scheduler.services import (
     build_garden_data_from_project,
@@ -31,6 +32,72 @@ from apps.scheduler.services import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@swagger_auto_schema(method="get", tags=["6. Scheduler"])
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def user_home_stats(request):
+    """
+    Returns 3 counts for the logged-in user's home screen:
+    - projects:  total garden projects created by the user
+    - tasks_today: tasks due today across all the user's active schedules
+    - plants: total plant slots placed across all the user's projects
+    """
+    from apps.gardens.models import GardenPlant
+
+    today = timezone.now().date()
+    user = request.user
+
+    project_count = GardenProject.objects.filter(user=user).count()
+
+    tasks_today = ScheduleTask.objects.filter(
+        milestone__schedule__user=user,
+        milestone__schedule__is_active=True,
+        due_date=today,
+    ).count()
+
+    plants_count = GardenPlant.objects.filter(project__user=user).count()
+
+    return Response(
+        {
+            "projects": project_count,
+            "tasks_today": tasks_today,
+            "plants": plants_count,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@swagger_auto_schema(method="get", tags=["6. Scheduler"])
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def upcoming_tasks(request):
+    """
+    Returns the logged-in user's upcoming pending tasks ordered by due date.
+    Shows tasks from today onwards across all active schedules.
+    Optional query param: limit (default 10)
+    """
+    today = timezone.now().date()
+    limit = min(int(request.query_params.get("limit", 10)), 50)
+
+    tasks = (
+        ScheduleTask.objects.select_related("plant", "milestone__schedule__project")
+        .filter(
+            milestone__schedule__user=request.user,
+            milestone__schedule__is_active=True,
+            status="pending",
+            due_date__gte=today,
+        )
+        .order_by("due_date", "display_order", "id")[:limit]
+    )
+
+    return Response(
+        UpcomingTaskSerializer(tasks, many=True, context={"request": request}).data,
+        status=status.HTTP_200_OK,
+    )
 
 
 @swagger_auto_schema(method="post", tags=["6. Scheduler"])
