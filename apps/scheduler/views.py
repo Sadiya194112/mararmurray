@@ -80,7 +80,14 @@ def upcoming_tasks(request):
     Shows tasks from today onwards across all active schedules.
     Optional query param: limit (default 10)
     """
-    limit = min(int(request.query_params.get("limit", 10)), 50)
+    today = timezone.now().date()
+    try:
+        limit = min(max(1, int(request.query_params.get("limit", 10))), 50)
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "limit must be an integer"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     tasks = (
         ScheduleTask.objects.select_related("plant", "milestone__schedule__project")
@@ -88,6 +95,7 @@ def upcoming_tasks(request):
             milestone__schedule__user=request.user,
             milestone__schedule__is_active=True,
             status="pending",
+            due_date__gte=today,
         )
         .order_by("due_date", "display_order", "id")[:limit]
     )
