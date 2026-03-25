@@ -12,6 +12,7 @@ from apps.accounts.views import (
     signin,
     signup,
     upload_user_image,
+    user_activate,
     user_deactivate,
     user_delete,
     user_detail,
@@ -30,24 +31,15 @@ urlpatterns = [
     path("change-password/", change_password, name="change_password"),
     path("profile/", get_profile, name="get-profile"),
     path("users/", users, name="users"),  # Admin users list (page, limit, search)
-    path(
-        "user/detail/<int:user_id>/", user_detail, name="user_detail"
-    ),  # Admin will get user detail by id
-    path("users/<int:user_id>/edit/", user_edit, name="user_edit"),  # Admin edit
-    path(
-        "users/<int:user_id>/deactivate/", user_deactivate, name="user_deactivate"
-    ),  # Admin deactivate
-    path(
-        "users/<int:user_id>/delete/", user_delete, name="user_delete"
-    ),  # Will be deleted by admin
+    path("user/detail/<int:user_id>/", user_detail, name="user_detail"),
+    path("users/<int:user_id>/edit/", user_edit, name="user_edit"),
+    path("users/<int:user_id>/deactivate/", user_deactivate, name="user_deactivate"),
+    path("users/<int:user_id>/activate/", user_activate, name="user_activate"),
+    path("users/<int:user_id>/delete/", user_delete, name="user_delete"),
     path("user/edit/", user_update, name="user_update"),
     path("logout/", logout, name="logout"),
     path("delete-account/", delete_account, name="delete_account"),
-    # 6. User Image APIs
-    # 6.1 Upload User Image
     path("profile/image/upload/", upload_user_image, name="upload-user-image"),
-    # 6.2 Get User Image
     path("profile/image/", get_user_image, name="get-user-image"),
-    # 6.3 Delete User Image
     path("profile/image/delete/", delete_user_image, name="delete-user-image"),
 ]

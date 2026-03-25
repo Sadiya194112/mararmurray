@@ -331,6 +331,16 @@ def user_detail(request, user_id):
 def user_edit(request, user_id):
     """Admin edit user profile fields."""
     user = get_object_or_404(User, id=user_id)
+
+    requested_is_active = request.data.get("is_active")
+    if user.is_superuser and requested_is_active is not None:
+        normalized = str(requested_is_active).strip().lower()
+        if normalized in {"false", "0", "no"}:
+            return Response(
+                {"error": "Super admin account cannot be deactivated."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     serializer = UserUpdateSerializer(
         user, data=request.data, partial=True, context={"request": request}
     )
@@ -353,11 +363,47 @@ def user_edit(request, user_id):
 def user_deactivate(request, user_id):
     """Admin deactivate user account."""
     user = get_object_or_404(User, id=user_id)
+
+    if user.is_superuser:
+        return Response(
+            {"error": "Super admin account cannot be deactivated."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     user.is_active = False
     user.save(update_fields=["is_active"])
     return Response(
         {
             "message": "User deactivated successfully.",
+            "id": user.id,
+            "is_active": user.is_active,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@swagger_auto_schema(method="patch", tags=["Accounts"])
+@api_view(["PATCH"])
+@permission_classes([IsAdminUser])
+@authentication_classes([JWTAuthentication])
+def user_activate(request, user_id):
+    """Admin activate user account back to True."""
+    # ১. ইউজারটিকে খুঁজে বের করুন (সে ডিঅ্যাক্টিভ থাকলেও এটি কাজ করবে)
+    user = get_object_or_404(User, id=user_id)
+
+    if user.is_active:
+        return Response(
+            {"message": "User is already active."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ২. ইউজারকে অ্যাক্টিভ করুন
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+
+    return Response(
+        {
+            "message": "User activated successfully.",
             "id": user.id,
             "is_active": user.is_active,
         },
