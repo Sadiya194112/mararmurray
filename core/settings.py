@@ -25,6 +25,9 @@ CORS_ALLOWED_ORIGINS = [
     "https://dashboard.florle.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://192.168.56.1:5173",
+    "http://192.168.16.108:5173",
 ]
 
 
