@@ -24,6 +24,7 @@ from apps.accounts.serializers import (
     PasswordResetSerializer,
     SendOTPSerializer,
     SignupSerializer,
+    UserImageSerializer,
     UserSerializer,
     UserUpdateSerializer,
     VerifyOTPSerializer,
@@ -499,7 +500,8 @@ def get_user_image(request):
     """6.2 Get user profile image"""
     user = request.user
     if user.image:
-        return Response({"image_url": user.image.url}, status=status.HTTP_200_OK)
+        serializer = UserImageSerializer(user, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
     return Response({"message": "No profile image"}, status=status.HTTP_404_NOT_FOUND)
 
 
