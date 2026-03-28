@@ -9,6 +9,7 @@ from apps.scheduler.views import (
     project_calendar_day,
     project_timeline,
     task_detail,
+    tasks_by_date,
     upcoming_tasks,
     update_task_status,
     user_home_stats,
@@ -32,6 +33,7 @@ urlpatterns = [
     ),
     path("milestones/<int:milestone_id>/", milestone_detail, name="milestone-detail"),
     path("tasks/<int:task_id>/", task_detail, name="task-detail"),
+    path("tasks/date/<str:date>/", tasks_by_date, name="tasks-by-date"),
     path("tasks/<int:task_id>/status/", update_task_status, name="update-task-status"),
     path("tasks/<int:task_id>/delete/", delete_task, name="delete-task"),
 ]

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
@@ -424,6 +425,45 @@ def project_calendar_day(request, project_id):
             "schedule_id": schedule.id,
             "date": selected_date,
             "tasks": ScheduleTaskSummarySerializer(
+                tasks, many=True, context={"request": request}
+            ).data,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@swagger_auto_schema(method="get", tags=["6. Scheduler"])
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def tasks_by_date(request, date):
+    """
+    Returns detailed tasks for the logged-in user on a given date.
+    Date must be passed as a URL param in YYYY-MM-DD format.
+    """
+    try:
+        selected_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    tasks = (
+        ScheduleTask.objects.select_related("plant", "milestone__schedule__project")
+        .filter(
+            milestone__schedule__user=request.user,
+            milestone__schedule__is_active=True,
+            due_date=selected_date,
+        )
+        .order_by("display_order", "id")
+    )
+
+    return Response(
+        {
+            "date": selected_date.isoformat(),
+            "task_count": tasks.count(),
+            "tasks": ScheduleTaskDetailSerializer(
                 tasks, many=True, context={"request": request}
             ).data,
         },
