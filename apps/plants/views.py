@@ -27,17 +27,6 @@ GARDEN_TYPE_CHOICES = [
     "mixed_garden",
 ]
 
-COLOR_CHOICES = [
-    "no_preference",
-    "pink",
-    "red",
-    "yellow",
-    "purple",
-    "white",
-    "orange",
-    "green",
-]
-
 
 @swagger_auto_schema(method="get", tags=["4. Plants"])
 @api_view(["GET"])
@@ -48,7 +37,7 @@ def plants(request):
     | `sunlight`    | `full_sun` · `partial_sun` · `full_shade` |
     | `soil_type`   | `sandy` · `clay` · `loam` · `not_sure` |
     | `garden_type` | `flower_garden` · `vegetable_garden` · `herb_garden` · `mixed_garden` |
-    | `color`       | `no_preference` · `pink` · `red` · `yellow` · `purple` · `white` · `orange` · `green` |
+    | `color`       | Any string (case-insensitive contains match) |
     | `page`        | Page number (default: 1) |
     | `limit`       | Items per page (default: 10, max: 50) |
     """
@@ -65,9 +54,6 @@ def plants(request):
         errors["soil_type"] = f"Invalid choice. Must be one of: {SOIL_TYPE_CHOICES}"
     if garden_type and garden_type not in GARDEN_TYPE_CHOICES:
         errors["garden_type"] = f"Invalid choice. Must be one of: {GARDEN_TYPE_CHOICES}"
-    if color and color not in COLOR_CHOICES:
-        errors["color"] = f"Invalid choice. Must be one of: {COLOR_CHOICES}"
-
     if errors:
         return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -80,8 +66,8 @@ def plants(request):
     if garden_type:
         queryset = queryset.filter(garden_type=garden_type)
 
-    if color and color != "no_preference":
-        queryset = queryset.filter(tags__icontains=color.replace("_", " "))
+    if color:
+        queryset = queryset.filter(color__icontains=color)
 
     try:
         page = max(1, int(request.query_params.get("page", 1)))
@@ -110,6 +96,8 @@ def plants(request):
                 "id": plant.pk,
                 "name": plant.common_name,
                 "scientific_name": plant.scientific_name or "",
+                "plant_type": plant.plant_type or "",
+                "color": plant.color or "",
                 "spacing": plant.spacing or "",  # e.g. "18-24 inches"
                 "sunlight": plant.sunlight or "",  # e.g. "full_sun"
                 "water": plant.water or "",  # e.g. "High water"

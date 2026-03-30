@@ -10,6 +10,7 @@ class PlantSerializer(serializers.ModelSerializer):
             "common_name",
             "scientific_name",
             "plant_type",
+            "color",
             "description",
             "image",
             "main_image_url",
@@ -31,6 +32,7 @@ class PlantSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {
             "plant_type": {"required": True, "allow_blank": False},
+            "color": {"required": False, "allow_blank": True},
             "description": {"required": True, "allow_blank": False},
             "image": {"required": False, "allow_null": True},
             "water": {"required": True, "allow_blank": False},

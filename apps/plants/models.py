@@ -2,6 +2,12 @@ from django.db import models
 
 
 class Plant(models.Model):
+    PLANT_TYPE_CHOICES = [
+        ("annual", "Annual"),
+        ("perenial", "Perenial"),
+        ("both", "Both"),
+    ]
+
     SUNLIGHT_CHOICES = [
         ("full_sun", "Full Sun"),
         ("partial_sun", "Partial Sun"),
@@ -23,7 +29,13 @@ class Plant(models.Model):
 
     common_name = models.CharField(max_length=255)
     scientific_name = models.CharField(max_length=255)  # JSON থেকে প্রথম এলিমেন্টটি নেবেন
-    plant_type = models.CharField(max_length=100, null=True, blank=True)
+    plant_type = models.CharField(
+        max_length=20,
+        choices=PLANT_TYPE_CHOICES,
+        null=True,
+        blank=True,
+    )
+    color = models.CharField(max_length=100, null=True, blank=True)
     description = models.TextField(null=True, blank=True)
 
     # Images
@@ -44,7 +56,9 @@ class Plant(models.Model):
         null=True,
         blank=True,
     )
-    garden_type = models.CharField(max_length=50, choices=GARDEN_TYPE_CHOICES, default="flower_garden")
+    garden_type = models.CharField(
+        max_length=50, choices=GARDEN_TYPE_CHOICES, default="flower_garden"
+    )
     spacing = models.CharField(max_length=100, null=True, blank=True)
     growth_size = models.CharField(max_length=100, null=True, blank=True)
     season = models.CharField(max_length=100, null=True, blank=True)

@@ -10,11 +10,20 @@ class PlantAdmin(admin.ModelAdmin):
         "common_name",
         "scientific_name",
         "plant_type",
+        "color",
         "sunlight",
         "soil_type",
         "garden_type",
-        # "color",
         "water",
     )
-    search_fields = ("common_name", "scientific_name", "plant_type", "sunlight", "soil_type", "water", "garden_type")
-    list_filter = ("plant_type", "sunlight", "difficulty")
+    search_fields = (
+        "common_name",
+        "scientific_name",
+        "plant_type",
+        "color",
+        "sunlight",
+        "soil_type",
+        "water",
+        "garden_type",
+    )
+    list_filter = ("plant_type", "sunlight", "difficulty", "color")

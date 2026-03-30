@@ -9,6 +9,21 @@ class PlantSyncService:
     BASE_URL = "https://perenual.com/api/v2/species/details/"
     API_KEY = os.getenv("PERENUAL_API_KEY")
 
+    @staticmethod
+    def _normalize_plant_type(value):
+        if not value:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"annual", "perenial", "both"}:
+            return normalized
+        if normalized == "perennial":
+            return "perenial"
+        if "annual" in normalized and (
+            "perennial" in normalized or "perenial" in normalized
+        ):
+            return "both"
+        return None
+
     @classmethod
     def sync_all_plants(cls, start_id=1, batch_size=100):
         """Sync plants in batches from Perenual API"""
@@ -105,11 +120,13 @@ class PlantSyncService:
                 print(f"Propagation: {propagation_str}\n")
 
                 # Save to database using update_or_create
+                plant_type = cls._normalize_plant_type(data.get("type"))
                 plant, created = Plant.objects.update_or_create(
                     scientific_name=scientific_name,
                     defaults={
                         "common_name": data.get("common_name", "Unknown"),
-                        "plant_type": data.get("type"),
+                        "plant_type": plant_type,
+                        "color": data.get("color", ""),
                         "description": data.get("description"),
                         "main_image_url": image_url,
                         "sunlight": sunlight_str,
