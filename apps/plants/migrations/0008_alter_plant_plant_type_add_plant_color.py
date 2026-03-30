@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
                     ("perenial", "Perenial"),
                     ("both", "Both"),
                 ],
-                max_length=20,
+                max_length=100,
                 null=True,
             ),
         ),
