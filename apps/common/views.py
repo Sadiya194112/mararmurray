@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -8,7 +10,7 @@ from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
 )
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
@@ -18,6 +20,7 @@ from apps.common.models import (
     TermsConditions,
 )
 from apps.common.serializers import (
+    ContactMessageSerializer,
     DashboardPostSerializer,
     PrivacyPolicySerializer,
     TermsConditionsSerializer,
@@ -162,3 +165,38 @@ def create_or_update_terms_conditions(request):
         {"error": "Invalid data. Please check your input."},
         status=status.HTTP_400_BAD_REQUEST,
     )
+
+
+@api_view(["POST"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def contact_us(request):
+    serializer = ContactMessageSerializer(data=request.data)
+    if serializer.is_valid():
+        contact_message = serializer.save()
+
+        if not settings.ADMIN_RECEIVER_EMAIL:
+            return Response(
+                {"error": "ADMIN_RECEIVER_EMAIL is not configured."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        subject = f"New Contact Us Message: {contact_message.subject}"
+        body = (
+            f"You have received a new contact message.\n\n"
+            f"Name: {contact_message.first_name} {contact_message.last_name}\n"
+            f"Email: {contact_message.email}\n"
+            f"Subject: {contact_message.subject}\n\n"
+            f"Message:\n{contact_message.message}"
+        )
+
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL or settings.EMAIL_HOST_USER,
+            recipient_list=[settings.ADMIN_RECEIVER_EMAIL],
+            fail_silently=False,
+        )
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

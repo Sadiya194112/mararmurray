@@ -6,6 +6,7 @@ from apps.plants.views import (
     delete_plant_image,
     get_plant_image,
     plant_detail,
+    plant_edit,
     plants,
     upload_plant_image,
 )
@@ -16,6 +17,7 @@ urlpatterns = [
     path("plant/detail/<int:plant_id>/", plant_detail, name="plant-detail"),
     # For Admin
     path("add/plant/", add_plant, name="add-plant"),
+    path("plant/<int:plant_id>/edit/", plant_edit, name="update-plant"),
     path(
         "plant/<int:plant_id>/image/upload/",
         upload_plant_image,

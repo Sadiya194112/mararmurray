@@ -141,6 +141,21 @@ def add_plant(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@swagger_auto_schema(method="patch", tags=["4. Plants"])
+@api_view(["PATCH"])
+@permission_classes([IsAdminUser])
+@authentication_classes([JWTAuthentication])
+def plant_edit(request, plant_id):
+    plant = get_object_or_404(Plant, pk=plant_id)
+    serializer = PlantSerializer(plant, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {"message": "Plant updated successfully!", "data": serializer.data}
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 # ============== Plant Image APIs ==============
 
 

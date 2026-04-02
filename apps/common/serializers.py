@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.common.models import (
+    ContactMessage,
     PrivacyPolicy,
     TermsConditions,
 )
@@ -44,3 +45,14 @@ class DashboardPostSerializer(serializers.Serializer):
         if obj.user and obj.user.image and request:
             return request.build_absolute_uri(obj.user.image.url)
         return None
+
+
+class ContactMessageSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    email = serializers.EmailField()
+    subject = serializers.CharField(max_length=200)
+    message = serializers.CharField()
+
+    def create(self, validated_data):
+        return ContactMessage.objects.create(**validated_data)

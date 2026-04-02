@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.common.views import (
+    contact_us,
     create_or_update_privacy_policy,
     create_or_update_terms_conditions,
     dashboard_posts,
@@ -38,4 +39,5 @@ urlpatterns = [
         create_or_update_terms_conditions,
         name="update-terms-conditions",
     ),
+    path("contact-us/", contact_us, name="contact-us"),
 ]
