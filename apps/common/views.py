@@ -193,7 +193,7 @@ def contact_us(request):
         send_mail(
             subject=subject,
             message=body,
-            from_email=settings.DEFAULT_FROM_EMAIL or settings.EMAIL_HOST_USER,
+            from_email=contact_message.email,
             recipient_list=[settings.ADMIN_RECEIVER_EMAIL],
             fail_silently=False,
         )
