@@ -30,7 +30,7 @@ class Plant(models.Model):
     common_name = models.CharField(max_length=255)
     scientific_name = models.CharField(max_length=255)  # JSON থেকে প্রথম এলিমেন্টটি নেবেন
     plant_type = models.CharField(
-        max_length=20,
+        max_length=200,
         choices=PLANT_TYPE_CHOICES,
         null=True,
         blank=True,
