@@ -193,7 +193,7 @@ def contact_us(request):
         send_mail(
             subject=subject,
             message=body,
-            from_email=contact_message.email,
+            from_email=serializer.validated_data["email"],
             recipient_list=[settings.ADMIN_RECEIVER_EMAIL],
             fail_silently=False,
         )
