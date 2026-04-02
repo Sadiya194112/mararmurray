@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -175,28 +175,35 @@ def contact_us(request):
     if serializer.is_valid():
         contact_message = serializer.save()
 
+        # ১. সরাসরি লগড-ইন ইউজারের ইমেইল এবং নাম নিন
+        logged_in_user_email = request.user.email
+        logged_in_user_name = (
+            f"{request.user.first_name} {request.user.last_name}".strip() or "User"
+        )
+
         if not settings.ADMIN_RECEIVER_EMAIL:
             return Response(
                 {"error": "ADMIN_RECEIVER_EMAIL is not configured."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        subject = f"New Contact Us Message: {contact_message.subject}"
+        subject = f"New Contact: {contact_message.subject}"
         body = (
-            f"You have received a new contact message.\n\n"
-            f"Name: {contact_message.first_name} {contact_message.last_name}\n"
-            f"Email: {contact_message.email}\n"
-            f"Subject: {contact_message.subject}\n\n"
-            f"Message:\n{contact_message.message}"
+            f"Message from Logged-in User: {logged_in_user_name} ({logged_in_user_email})\n\n"
+            f"Message Body:\n{contact_message.message}"
         )
 
-        send_mail(
+        # ২. EmailMessage অবজেক্ট তৈরি
+        email = EmailMessage(
             subject=subject,
-            message=body,
-            from_email=serializer.validated_data["email"],
-            recipient_list=[settings.ADMIN_RECEIVER_EMAIL],
-            fail_silently=False,
+            body=body,
+            from_email=logged_in_user_email,  # <--- এখানে সরাসরি লগড-ইন ইউজারের ইমেইল
+            to=[settings.ADMIN_RECEIVER_EMAIL],
+            reply_to=[logged_in_user_email],  # যাতে রিপ্লাই দিলে ইউজারের কাছে যায়
         )
+
+        # ৩. মেইল সেন্ড করা
+        email.send(fail_silently=False)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
