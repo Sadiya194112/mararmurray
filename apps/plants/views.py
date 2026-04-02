@@ -26,6 +26,11 @@ GARDEN_TYPE_CHOICES = [
     "herb_garden",
     "mixed_garden",
 ]
+PLANT_TYPE_CHOICES = [
+    ("annual", "Annual"),
+    ("perennial", "Perennial"),
+    ("both", "Both"),
+]
 
 
 @swagger_auto_schema(method="get", tags=["4. Plants"])
@@ -45,6 +50,7 @@ def plants(request):
     sunlight = request.query_params.get("sunlight")
     soil_type = request.query_params.get("soil_type")
     garden_type = request.query_params.get("garden_type")
+    plant_type = request.query_params.get("plant_type")
     color = request.query_params.get("color")
 
     errors = {}
@@ -54,6 +60,10 @@ def plants(request):
         errors["soil_type"] = f"Invalid choice. Must be one of: {SOIL_TYPE_CHOICES}"
     if garden_type and garden_type not in GARDEN_TYPE_CHOICES:
         errors["garden_type"] = f"Invalid choice. Must be one of: {GARDEN_TYPE_CHOICES}"
+    if plant_type and plant_type not in dict(PLANT_TYPE_CHOICES):
+        errors["plant_type"] = (
+            f"Invalid choice. Must be one of: {list(dict(PLANT_TYPE_CHOICES).keys())}"
+        )
     if errors:
         return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -65,7 +75,8 @@ def plants(request):
         queryset = queryset.filter(soil_type=soil_type)
     if garden_type:
         queryset = queryset.filter(garden_type=garden_type)
-
+    if plant_type:
+        queryset = queryset.filter(plant_type=plant_type)
     if color:
         queryset = queryset.filter(color__icontains=color)
 
