@@ -172,14 +172,15 @@ def create_or_update_terms_conditions(request):
 @permission_classes([IsAuthenticated])
 def contact_us(request):
     serializer = ContactMessageSerializer(data=request.data)
+
     if serializer.is_valid():
+        # ১. ডাটাবেসে সেভ করা
         contact_message = serializer.save()
 
-        # ১. সরাসরি লগড-ইন ইউজারের ইমেইল এবং নাম নিন
-        logged_in_user_email = request.user.email
+        # ২. সিরিয়ালাইজার থেকে ইনপুট ইমেইল এবং নাম নেওয়া
+        input_email = serializer.validated_data.get("email")  # ইউজার ফর্মে যা দিয়েছে
         first_name = serializer.validated_data.get("first_name", "")
         last_name = serializer.validated_data.get("last_name", "")
-
         full_name = f"{first_name} {last_name}".strip() or "User"
 
         if not settings.ADMIN_RECEIVER_EMAIL:
@@ -188,23 +189,29 @@ def contact_us(request):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        subject = f"New Contact: {contact_message.subject}"
+        # ৩. মেইল বডি তৈরি (ইনপুট ইমেইল এখানে থাকবে)
+        subject = f"New Contact Us: {contact_message.subject}"
         body = (
-            f"Message from Logged-in User: {full_name} ({logged_in_user_email})\n\n"
-            f"Message Body:\n{contact_message.message}"
+            f"You have received a new message from the contact form.\n\n"
+            f"Name: {full_name}\n"
+            f"User Provided Email: {input_email}\n"  # ইনপুট ইমেইল বডিতে
+            f"Logged-in User Account: {request.user.email}\n\n"
+            f"Subject: {contact_message.subject}\n"
+            f"Message:\n{contact_message.message}"
         )
 
-        # ২. EmailMessage অবজেক্ট তৈরি
+        # ৪. EmailMessage অবজেক্ট তৈরি
         email = EmailMessage(
             subject=subject,
             body=body,
-            from_email=logged_in_user_email,  # <--- এখানে সরাসরি লগড-ইন ইউজারের ইমেইল
+            from_email=settings.DEFAULT_FROM_EMAIL,  # এটি আপনার No-Reply বা সিস্টেম মেইল
             to=[settings.ADMIN_RECEIVER_EMAIL],
-            reply_to=[logged_in_user_email],  # যাতে রিপ্লাই দিলে ইউজারের কাছে যায়
+            # এখানে reply_to বাদ দেওয়া হয়েছে কারণ আপনি Anonymous/No-Reply চাচ্ছেন
         )
 
-        # ৩. মেইল সেন্ড করা
+        # ৫. মেইল সেন্ড করা
         email.send(fail_silently=False)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
