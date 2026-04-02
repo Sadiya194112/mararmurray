@@ -177,9 +177,10 @@ def contact_us(request):
 
         # ১. সরাসরি লগড-ইন ইউজারের ইমেইল এবং নাম নিন
         logged_in_user_email = request.user.email
-        logged_in_user_name = (
-            f"{request.user.first_name} {request.user.last_name}".strip() or "User"
-        )
+        first_name = serializer.validated_data.get("first_name", "")
+        last_name = serializer.validated_data.get("last_name", "")
+
+        full_name = f"{first_name} {last_name}".strip() or "User"
 
         if not settings.ADMIN_RECEIVER_EMAIL:
             return Response(
@@ -189,7 +190,7 @@ def contact_us(request):
 
         subject = f"New Contact: {contact_message.subject}"
         body = (
-            f"Message from Logged-in User: {logged_in_user_name} ({logged_in_user_email})\n\n"
+            f"Message from Logged-in User: {full_name} ({logged_in_user_email})\n\n"
             f"Message Body:\n{contact_message.message}"
         )
 
