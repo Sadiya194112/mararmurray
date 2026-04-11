@@ -46,10 +46,16 @@ def create_garden_mockup(background_path, plant_paths):
     # জেনারেটেড ইমেজ মেমরিতে প্রসেস করা (সরাসরি ফাইল সেভ না করে) #
     for part in response.parts:
         if part.inline_data:
-            output_image = part.as_image()
+            # সরাসরি part.as_image() ব্যবহার না করে বাইট ডাটা থেকে PIL Image তৈরি করা
+            from PIL import Image as PILImage  # নিশ্চিত হতে ইম্পোর্ট করে নিন
+
+            # Gemini থেকে আসা বাইট ডাটা সরাসরি ওপেন করা
+            temp_image = PILImage.open(io.BytesIO(part.inline_data.data))
+
             buffer = io.BytesIO()
-            output_image.save(buffer, format="JPEG")
-            # জ্যাঙ্গোর ডাটাবেসে সেভ করার উপযোগী ফাইল ফরম্যাট
+            # এখন এটি সত্যিকারের PIL Image, তাই format="JPEG" কাজ করবে
+            temp_image.save(buffer, format="JPEG")
+
             return ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
 
     return None
