@@ -43,7 +43,7 @@ def create_garden_mockup(background_path, plant_paths):
         ),
     )
 
-    # জেনারেটেড ইমেজ মেমরিতে প্রসেস করা (সরাসরি ফাইল সেভ না করে)
+    # জেনারেটেড ইমেজ মেমরিতে প্রসেস করা (সরাসরি ফাইল সেভ না করে) #
     for part in response.parts:
         if part.inline_data:
             output_image = part.as_image()
