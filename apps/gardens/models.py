@@ -3,10 +3,10 @@ from django.db import models
 from apps.accounts.models import User
 from apps.plants.models import Plant
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Garden Photo
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class GardenPhoto(models.Model):
     """
@@ -21,7 +21,11 @@ class GardenPhoto(models.Model):
     ]
 
     user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="garden_photos", null=True, blank=True
+        User,
+        on_delete=models.CASCADE,
+        related_name="garden_photos",
+        null=True,
+        blank=True,
     )
     image = models.ImageField(upload_to="garden_photos/")
     quality_status = models.CharField(
@@ -38,6 +42,7 @@ class GardenPhoto(models.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # Garden Project  (main model — preferences live here)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class GardenProject(models.Model):
     """
@@ -60,10 +65,10 @@ class GardenProject(models.Model):
     ]
 
     GARDEN_TYPE_CHOICES = [
-        ("flower", "Flower Garden"),
-        ("vegetable", "Vegetable Garden"),
-        ("herb", "Herb Garden"),
-        ("mixed", "Mixed Garden"),
+        ("flower_garden", "Flower Garden"),
+        ("vegetable_garden", "Vegetable Garden"),
+        ("herb_garden", "Herb Garden"),
+        ("mixed_garden", "Mixed Garden"),
     ]
 
     # Owner
@@ -78,8 +83,10 @@ class GardenProject(models.Model):
 
     # ── Location ─────────────────────────────────────────────────────────────
     location = models.CharField(
-        max_length=255, null=True, blank=True,
-        help_text="City, zip code, or coordinates"
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="City, zip code, or coordinates",
     )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
@@ -99,17 +106,25 @@ class GardenProject(models.Model):
     total_area_sq_ft = models.FloatField(
         null=True, blank=True, help_text="Total garden area in sq ft"
     )
-    height_ft = models.FloatField(null=True, blank=True, help_text="Garden height in feet")
-    width_ft = models.FloatField(null=True, blank=True, help_text="Garden width in feet")
+    height_ft = models.FloatField(
+        null=True, blank=True, help_text="Garden height in feet"
+    )
+    width_ft = models.FloatField(
+        null=True, blank=True, help_text="Garden width in feet"
+    )
 
     # ── AI Composition outputs ───────────────────────────────────────────────
     blended_image = models.ImageField(
-        upload_to="garden_compositions/", null=True, blank=True,
-        help_text="Final AI-blended garden image"
+        upload_to="garden_compositions/",
+        null=True,
+        blank=True,
+        help_text="Final AI-blended garden image",
     )
     composite_image = models.ImageField(
-        upload_to="garden_composites/", null=True, blank=True,
-        help_text="Pre-AI composite (overlay) image"
+        upload_to="garden_composites/",
+        null=True,
+        blank=True,
+        help_text="Pre-AI composite (overlay) image",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -126,6 +141,7 @@ class GardenProject(models.Model):
 # Garden Plant placement
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class GardenPlant(models.Model):
     """
     A single plant placed inside a GardenProject at a specific position.
@@ -141,7 +157,9 @@ class GardenPlant(models.Model):
 
     x = models.FloatField(default=0.5, help_text="Relative X position (0.0–1.0)")
     y = models.FloatField(default=0.5, help_text="Relative Y position (0.0–1.0)")
-    scale = models.FloatField(default=1.0, help_text="Scale factor (1.0 = natural size)")
+    scale = models.FloatField(
+        default=1.0, help_text="Scale factor (1.0 = natural size)"
+    )
 
     class Meta:
         ordering = ["id"]
