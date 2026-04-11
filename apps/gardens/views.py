@@ -27,7 +27,7 @@ from apps.plants.models import Plant
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
-#  1. Garden Project Creation & Quality Check
+#  1.  Garden Project Creation & Quality Check
 # ─────────────────────────────────────────────
 
 
