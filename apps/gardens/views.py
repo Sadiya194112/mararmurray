@@ -243,6 +243,7 @@ def compose_garden_and_save(request):
                         "scale": item.get("scale", 1.0),
                     }
                 )
+
         except Plant.DoesNotExist:
             continue
 
@@ -251,6 +252,8 @@ def compose_garden_and_save(request):
         ai_generated_file = create_garden_mockup(
             background_path=project.photo.path, plant_paths=plant_paths
         )
+        print(f"background_path: {project.photo.path}")
+        print(f"plant_paths: {plant_paths}")
 
         if ai_generated_file:
             # ডাটাবেসের blended_image ফিল্ডে সেভ করা
