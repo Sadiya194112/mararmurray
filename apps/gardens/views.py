@@ -1,6 +1,5 @@
 import base64
 import logging
-import os
 
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
@@ -15,8 +14,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from ai_plant_engine.composer.engine import PlantComposer
 from apps.gardens.ai.main import analyze_image_quality
+from apps.gardens.ai.pic_marge_used import create_garden_mockup
 from apps.gardens.models import GardenPhoto, GardenPlant, GardenProject
 from apps.gardens.serializers import (
     GardenPhotoSerializer,
@@ -218,106 +217,60 @@ def _base64_to_file(data, name):
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def compose_garden_and_save(request):
-    """
-    ইতিমধ্যেই তৈরি করা GardenProject-এ AI জেনারেটেড ইমেজ আপডেট করার এপিআই।
-    """
     data = request.data
     project_id = data.get("project_id")
     plants_input = data.get("plants", [])
 
-    # ১. বিদ্যমান প্রজেক্টটি খুঁজে বের করা
+    # ১. প্রজেক্ট খুঁজে বের করা
     project = get_object_or_404(GardenProject, id=project_id, user=request.user)
 
     if not project.photo or not plants_input:
-        return Response(
-            {"error": "Garden photo and plants are required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({"error": "Garden photo and plants are required."}, status=400)
 
-    # ২. AI Composer এর জন্য ডাটা প্রস্তুত করা
-    plant_list_for_ai = []
+    # ২. AI এর জন্য লোকাল ফাইল পাথ লিস্ট তৈরি করা
+    plant_paths = []
     resolved_plants = []
-    garden_photo_url = request.build_absolute_uri(project.photo.url)
-
     for item in plants_input:
         try:
             plant = Plant.objects.get(id=item["plant_id"])
-            # Fetch the absolute URL for the image
-            img_url = (
-                request.build_absolute_uri(plant.image.url)
-                if plant.image
-                else plant.main_image_url
-            )
-
-            plant_list_for_ai.append(
-                {
-                    "image": img_url,
-                    "x": item["x"],
-                    "y": item["y"],
-                    "scale": item.get("scale", 1.0),
-                }
-            )
-            resolved_plants.append(
-                {
-                    "instance": plant,
-                    "x": item["x"],
-                    "y": item["y"],
-                    "scale": item.get("scale", 1.0),
-                }
-            )
+            if plant.image:
+                plant_paths.append(plant.image.path)  # VPS-এর লোকাল পাথ
+                resolved_plants.append(
+                    {
+                        "instance": plant,
+                        "x": item["x"],
+                        "y": item["y"],
+                        "scale": item.get("scale", 1.0),
+                    }
+                )
         except Plant.DoesNotExist:
             continue
 
-    # ৩. AI Composer কল করা (Updated for Hugging Face)
-    # Need to uncomment later
-
+    # ৩. আপনার AI ফাংশনটি কল করা (Calling the mockup creator)
     try:
-        # Changed from OPENAI_API_KEY to STABILITY_API_KEY
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return Response(
-                {"error": "OpenAI API key not configured in .env"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        ai_generated_file = create_garden_mockup(
+            background_path=project.photo.path, plant_paths=plant_paths
+        )
+
+        if ai_generated_file:
+            # ডাটাবেসের blended_image ফিল্ডে সেভ করা
+            project.blended_image.save(
+                f"garden_{project.id}_ai.jpg", ai_generated_file, save=False
             )
+        else:
+            return Response({"error": "AI response was empty."}, status=500)
 
-        # Initialize the new Hugging Face composer
-        composer = PlantComposer(openai_api_key=api_key)
-
-        # This will now hit the free Hugging Face Inference API
-        ai_result = composer.compose_plants(
-            garden_image_path=garden_photo_url, plants=plant_list_for_ai
-        )
     except Exception as e:
-        return Response(
-            {"error": f"AI Blending failed: {str(e)}"},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
+        return Response({"error": f"AI Processing failed: {str(e)}"}, status=500)
 
-    # ৪. এক্সিস্টিং প্রজেক্টে ইমেজ আপডেট করা
-    if ai_result.get("blended_image"):
-        # Because we send a base64 string directly from HF, your helper will decode it perfectly
-        project.blended_image.save(
-            f"garden_{project.id}_blended.jpg",
-            _base64_to_file(ai_result["blended_image"], "blended.jpg"),
-            save=False,
-        )
-    if ai_result.get("composite_image"):
-        project.composite_image.save(
-            f"garden_{project.id}_composite.jpg",
-            _base64_to_file(ai_result["composite_image"], "composite.jpg"),
-            save=False,
-        )
+    # ৪. ডাটাবেসে সেভ এবং পজিশন আপডেট
+    project.save(update_fields=["blended_image", "updated_at"])
 
-    # শুধু নির্দিষ্ট ফিল্ডগুলো আপডেট করা
-    project.save(update_fields=["blended_image", "composite_image", "updated_at"])
-
-    # ৫. GardenPlant টেবিলে পজিশন সেভ করা (যদি আগে থাকে তবে ডুপ্লিকেট এড়াতে ডিলিট করে নতুন করা যেতে পারে)
-    GardenPlant.objects.filter(project=project).delete()  # আগের ডিজাইন মুছে নতুনটি সেভ করা
+    GardenPlant.objects.filter(project=project).delete()
     for p in resolved_plants:
         GardenPlant.objects.create(
             project=project, plant=p["instance"], x=p["x"], y=p["y"], scale=p["scale"]
         )
 
-    # Return the updated project via the serializer
     serializer = GardenProjectSerializer(project, context={"request": request})
     return Response(serializer.data, status=status.HTTP_200_OK)
