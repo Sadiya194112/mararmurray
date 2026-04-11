@@ -1,4 +1,5 @@
 import io
+import os
 
 from django.core.files.base import ContentFile
 from dotenv import load_dotenv
@@ -7,23 +8,37 @@ from google.genai import types
 from PIL import Image
 
 
-def create_garden_mockup(background_path, plant_paths):
+def create_garden_mockup(background_path, plants_data):
+    """
+    ইউজার থেকে পাওয়া স্পেসিফিক পজিশন অনুযায়ী এআই মকআপ তৈরি করে।
+    """
     load_dotenv()
-    client = genai.Client()
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
     try:
         background_img = Image.open(background_path)
-        plant_images = [Image.open(p) for p in plant_paths]
+        plant_images = [Image.open(p["path"]) for p in plants_data]
     except FileNotFoundError as e:
         print(f"Error finding image: {e}")
-        return
+        return None
+
+    # HIGHLIGHT: পজিশনিং তথ্য ডাইনামিক ভাবে তৈরি করা
+    positioning_info = "\n".join(
+        [
+            f"Plant {i + 1}: Position ({p['x']}, {p['y']}) on canvas, Scale: {p['scale']}x"
+            for i, p in enumerate(plants_data)
+        ]
+    )
 
     prompt = (
-        "You are an expert garden visualization AI. Your task is to create a realistic preview of how selected plants and flowers will look when placed in the user’s garden photo. "
+        "You are an expert garden visualization AI. Your task is to create a realistic preview of how selected plants and flowers will look when placed in the user's garden photo. "
         "Follow these rules carefully: "
         "1. BASE IMAGE PRESERVATION & ENHANCEMENT: Treat the first image as the main garden scene. Keep its layout, structures, and existing elements unchanged. "
         "You may slightly enhance the image quality (lighting balance, color clarity, sharpness) only if needed to improve realism, but do not alter the actual design or content of the garden. "
-        "2. NATURAL PLANT PLACEMENT: Identify appropriate empty or underutilized areas such as soil beds, lawn edges, corners, or pathways. "
-        "Place the new plants in a way that feels natural and aesthetically pleasing, as if they were actually planted there by a gardener. Avoid overcrowding. "
+        "2. PLANT POSITIONING: Place plants according to these specifications:\n"
+        + positioning_info
+        + "\n"
+        "Where (0, 0) is top-left and (1, 1) is bottom-right of the canvas. Use the scale values to adjust plant sizes appropriately. "
         "3. CLEAN PLANT EXTRACTION: Remove any background from the provided plant images. Only the plant itself should be used, without original walls, pots, or distractions. "
         "4. REALISTIC SCALE & PERSPECTIVE: Adjust the size, depth, and angle of each plant based on where it is placed (foreground, midground, background). "
         "Ensure correct perspective so the plants blend naturally into the scene. "
@@ -34,28 +49,24 @@ def create_garden_mockup(background_path, plant_paths):
 
     request_contents = [prompt, background_img] + plant_images
 
-    response = client.models.generate_content(
-        model="gemini-3.1-flash-image-preview",
-        contents=request_contents,
-        config=types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(aspect_ratio="16:9"),
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-image-preview",
+            contents=request_contents,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="16:9"),
+            ),
+        )
 
-    # জেনারেটেড ইমেজ মেমরিতে প্রসেস করা (সরাসরি ফাইল সেভ না করে) #
-    for part in response.parts:
-        if part.inline_data:
-            # সরাসরি part.as_image() ব্যবহার না করে বাইট ডাটা থেকে PIL Image তৈরি করা
-            from PIL import Image as PILImage  # নিশ্চিত হতে ইম্পোর্ট করে নিন
+        for part in response.parts:
+            if part.inline_data:
+                from PIL import Image as PILImage
 
-            # Gemini থেকে আসা বাইট ডাটা সরাসরি ওপেন করা
-            temp_image = PILImage.open(io.BytesIO(part.inline_data.data))
-
-            buffer = io.BytesIO()
-            # এখন এটি সত্যিকারের PIL Image, তাই format="JPEG" কাজ করবে
-            temp_image.save(buffer, format="JPEG")
-
-            return ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
-
-    return None
+                temp_image = PILImage.open(io.BytesIO(part.inline_data.data))
+                buffer = io.BytesIO()
+                temp_image.save(buffer, format="JPEG")
+                return ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        return None

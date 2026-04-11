@@ -221,20 +221,28 @@ def compose_garden_and_save(request):
     project_id = data.get("project_id")
     plants_input = data.get("plants", [])
 
-    # ১. প্রজেক্ট খুঁজে বের করা
     project = get_object_or_404(GardenProject, id=project_id, user=request.user)
 
     if not project.photo or not plants_input:
         return Response({"error": "Garden photo and plants are required."}, status=400)
 
-    # ২. AI এর জন্য লোকাল ফাইল পাথ লিস্ট তৈরি করা
-    plant_paths = []
+    # HIGHLIGHT: পাথ এবং পজিশন ডাটা একসাথে গুছিয়ে নেওয়া
+    plants_data_for_ai = []
     resolved_plants = []
+
     for item in plants_input:
         try:
             plant = Plant.objects.get(id=item["plant_id"])
             if plant.image:
-                plant_paths.append(plant.image.path)  # VPS-এর লোকাল পাথ
+                # HIGHLIGHT: AI কে পাঠানোর জন্য ডিকশনারি তৈরি
+                plants_data_for_ai.append(
+                    {
+                        "path": plant.image.path,
+                        "x": item["x"],
+                        "y": item["y"],
+                        "scale": item.get("scale", 1.0),
+                    }
+                )
                 resolved_plants.append(
                     {
                         "instance": plant,
@@ -243,20 +251,17 @@ def compose_garden_and_save(request):
                         "scale": item.get("scale", 1.0),
                     }
                 )
-
         except Plant.DoesNotExist:
             continue
 
-    # ৩. আপনার AI ফাংশনটি কল করা (Calling the mockup creator)
     try:
+        # ৩. কলিং এআই মেকার
         ai_generated_file = create_garden_mockup(
-            background_path=project.photo.path, plant_paths=plant_paths
+            background_path=project.photo.path,
+            plants_data=plants_data_for_ai,  # HIGHLIGHT: এখন আমরা পজিশন ডাটাও পাঠাচ্ছি
         )
-        print(f"background_path: {project.photo.path}")
-        print(f"plant_paths: {plant_paths}")
 
         if ai_generated_file:
-            # ডাটাবেসের blended_image ফিল্ডে সেভ করা
             project.blended_image.save(
                 f"garden_{project.id}_ai.jpg", ai_generated_file, save=False
             )
@@ -266,7 +271,6 @@ def compose_garden_and_save(request):
     except Exception as e:
         return Response({"error": f"AI Processing failed: {str(e)}"}, status=500)
 
-    # ৪. ডাটাবেসে সেভ এবং পজিশন আপডেট
     project.save(update_fields=["blended_image", "updated_at"])
 
     GardenPlant.objects.filter(project=project).delete()
