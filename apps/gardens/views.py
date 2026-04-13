@@ -46,20 +46,7 @@ def create_garden_project(request):
         if photo_id:
             try:
                 garden_photo = GardenPhoto.objects.get(id=photo_id, user=request.user)
-                # সরাসরি পাথ পাঠিয়ে কোয়ালিটি চেক
-                quality_report = analyze_image_quality(garden_photo.image.path)
-                if not quality_report.get("is_good_quality"):
-                    return Response(
-                        {
-                            "status": "quality_warning",
-                            "error": "Photo quality is poor.",
-                            "issues": quality_report.get("issues"),
-                            "photo_id": photo_id,
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                # কোয়ালিটি ভালো হলে প্রজেক্ট সেভ করার সময় এই ছবি ব্যবহার করুন
+                # photo_id path ধরে নিচ্ছি যে quality আগেই upload_garden_photo তে চেক হয়েছে
                 serializer.save(user=request.user, photo=garden_photo.image)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
