@@ -138,7 +138,20 @@ def generate_schedule(request):
             garden_data = build_garden_data_from_project(project)
 
         scheduler = PlantScheduler()
-        generated_payload = scheduler.generate_schedule(garden_data)
+
+        # প্রজেক্ট থাকলে তার তৈরির তারিখ নিন, না থাকলে আজকের তারিখ নিন
+        if project:
+            project_start_date = project.created_at.date().isoformat()
+        else:
+            from datetime import date
+
+            project_start_date = date.today().isoformat()
+
+        # ডাইনামিক স্টার্ট ডেট সহ এআই কল করা
+        generated_payload = scheduler.generate_schedule(
+            garden_data, start_date=project_start_date
+        )
+
         saved_schedule = save_generated_schedule(
             user=request.user,
             project=project,
