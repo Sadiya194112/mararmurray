@@ -146,6 +146,8 @@ def generate_schedule(request):
             garden_data=garden_data,
             schedule_data=generated_payload,
         )
+        print("Generated Schedule: ", generated_payload)  # Debug log
+        print("Saved Schedule: ", saved_schedule)  # Debug log
         return Response(
             {
                 "message": "Schedule generated successfully",
