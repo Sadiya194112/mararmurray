@@ -240,7 +240,7 @@ def compose_garden_and_save(request):
                 )
         except Plant.DoesNotExist:
             continue
-
+    print("Plants data for ai: ", plants_data_for_ai)
     try:
         # ৩. কলিং এআই মেকার
         ai_generated_file = create_garden_mockup(
