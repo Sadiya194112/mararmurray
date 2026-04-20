@@ -6,6 +6,8 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from dotenv import load_dotenv
+import requests
+from io import BytesIO
 
 # এআই কাউন্টিং মডেল লিস্ট
 COUNTING_MODELS = [
@@ -16,6 +18,20 @@ COUNTING_MODELS = [
     "gemini-2.5-flash-preview-09-2025",
     "gemini-2.5-flash-lite-preview-09-2025",
 ]
+
+def open_image_flexible(path):
+    """পাথটি ইউআরএল হলে ডাউনলোড করবে, ফাইল হলে সরাসরি ওপেন করবে।"""
+    if path.startswith(('http://', 'https://')):
+        try:
+            response = requests.get(path, timeout=10)
+            response.raise_for_status()
+            return Image.open(BytesIO(response.content))
+        except Exception as e:
+            print(f"Failed to download image from URL {path}: {e}")
+            raise FileNotFoundError(f"Could not load image from URL: {path}")
+    else:
+        return Image.open(path)
+
 
 def build_plant_definitions(plants_data):
     """গাছের ডাটা গুছিয়ে এআই-এর জন্য ডেফিনিশন তৈরি করে"""
@@ -141,8 +157,10 @@ def create_garden_mockup(background_path, plants_data):
 
     # ২. এআই প্রম্পট এবং জেনারেশন লজিক
     try:
-        background_img = Image.open(background_path)
-        plant_images = [Image.open(plant["path"]) for plant in plant_definitions]
+        # background_img = Image.open(background_path)
+        # plant_images = [Image.open(plant["path"]) for plant in plant_definitions]
+        background_img = open_image_flexible(background_path)
+        plant_images = [open_image_flexible(p["path"]) for p in plants_data]
     except FileNotFoundError as e:
         print(f"Error finding image: {e}")
         return None
