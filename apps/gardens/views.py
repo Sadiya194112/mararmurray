@@ -297,8 +297,8 @@ def compose_garden_and_save(request):
 
 @swagger_auto_schema(method="get", tags=["3. Garden Project"])
 @api_view(["GET"])
-# @authentication_classes([JWTAuthentication])
-# @permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
 def download_blended_image(request, project_id):
     project = get_object_or_404(GardenProject, id=project_id, user=request.user)
 
