@@ -64,8 +64,8 @@ def build_plant_definitions(plants_data):
 def estimate_plant_counts(client, rendered_image_path, plant_definitions):
     """জেনারেটেড ছবিতে কয়টি গাছ আছে তা এআই দিয়ে ভেরিফাই করে"""
     try:
-        rendered_image = Image.open(rendered_image_path)
-        reference_images = [Image.open(plant["path"]) for plant in plant_definitions]
+        rendered_image = open_image_flexible(rendered_image_path)
+        reference_images = [open_image_flexible(plant["path"]) for plant in plant_definitions]
     except FileNotFoundError as e:
         print(f"Error finding image for count analysis: {e}")
         return None
@@ -127,14 +127,14 @@ def create_garden_mockup(background_path, plants_data):
 
     # ১. পিলো (Pillow) দিয়ে ব্যাকআপ লেআউট তৈরি করা
     try:
-        bg_pil = Image.open(background_path).convert("RGBA")
+        bg_pil = open_image_flexible(background_path).convert("RGBA")
         bg_width, bg_height = bg_pil.size
         final_pil = bg_pil.copy()
         
         plants_placed = 0
         for plant in plant_definitions:
             try:
-                p_img = Image.open(plant['path']).convert("RGBA")
+                p_img = open_image_flexible(plant['path']).convert("RGBA")
             except FileNotFoundError:
                 continue
                 
@@ -244,9 +244,8 @@ def create_garden_mockup(background_path, plants_data):
                     print(json.dumps(plant_counts, indent=2))
 
                 # জ্যাঙ্গোর জন্য ContentFile রিটার্ন করা
-                buffer = io.BytesIO()
-                output_image.save(buffer, format="JPEG")
-                return ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
+                with open(temp_filename, "rb") as f:
+                    return ContentFile(f.read(), name="ai_garden_render.jpg")
 
         print("The API responded, but no images were found in the output.")
         return None
