@@ -297,9 +297,7 @@ def create_garden_mockup(background_path, plants_data):
                 count += 1
                 
                 if count == 1:
-                    buffer = io.BytesIO()
-                    output_image.save(buffer, format="JPEG")
-                    final_django_file = ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
+                    final_django_file = ContentFile(part.inline_data.data, name="ai_garden_render.jpg")
 
         if count == 0:
             print("The API responded, but no images were found in the output.")
