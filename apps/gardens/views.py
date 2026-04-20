@@ -217,30 +217,48 @@ def compose_garden_and_save(request):
     plants_data_for_ai = []
     resolved_plants = []
 
+    print("DEBUG: Processing plants_input ->", plants_input)
     for item in plants_input:
+        plant_id = item.get("plant_id")
+        print(f"DEBUG: Checking plant_id {plant_id}")
         try:
-            plant = Plant.objects.get(id=item["plant_id"])
+            plant = Plant.objects.get(id=plant_id)
+            print(f"DEBUG: Found plant in DB -> {plant} (id={plant.id})")
+            
             if plant.image:
-                # HIGHLIGHT: AI কে পাঠানোর জন্য ডিকশনারি তৈরি
-                plants_data_for_ai.append(
-                    {
-                        "path": plant.image.path,
-                        "x": item["x"],
-                        "y": item["y"],
-                        "scale": item.get("scale", 1.0),
-                    }
-                )
-                resolved_plants.append(
-                    {
-                        "instance": plant,
-                        "x": item["x"],
-                        "y": item["y"],
-                        "scale": item.get("scale", 1.0),
-                    }
-                )
+                print(f"DEBUG: Plant {plant.id} has image -> {plant.image.name}")
+                try:
+                    plants_data_for_ai.append(
+                        {
+                            "path": plant.image.path,
+                            "x": item["x"],
+                            "y": item["y"],
+                            "scale": item.get("scale", 1.0),
+                        }
+                    )
+                    resolved_plants.append(
+                        {
+                            "instance": plant,
+                            "x": item["x"],
+                            "y": item["y"],
+                            "scale": item.get("scale", 1.0),
+                        }
+                    )
+                    print(f"DEBUG: Successfully added plant {plant.id}")
+                except Exception as inner_e:
+                    print(f"DEBUG: Error accessing plant data properties for {plant.id}: {inner_e}")
+            else:
+                print(f"DEBUG: Plant {plant.id} has NO image attached in DB.")
+                
         except Plant.DoesNotExist:
+            print(f"DEBUG: Plant.DoesNotExist for plant_id {plant_id}")
             continue
-    print("Plants data for ai: ", plants_data_for_ai)
+        except Exception as e:
+            print(f"DEBUG: Unexpected error for plant_id {plant_id} -> {e}")
+            continue
+
+    print("DEBUG: Final Plants data for ai: ", plants_data_for_ai)
+    
     try:
         # ৩. কলিং এআই মেকার
         ai_generated_file = create_garden_mockup(
