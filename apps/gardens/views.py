@@ -2,6 +2,7 @@ import base64
 import logging
 
 from django.core.files.base import ContentFile
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
@@ -292,3 +293,27 @@ def compose_garden_and_save(request):
 
     serializer = GardenProjectSerializer(project, context={"request": request})
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(method="get", tags=["3. Garden Project"])
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def download_blended_image(request, project_id):
+    project = get_object_or_404(GardenProject, id=project_id, user=request.user)
+
+    if not project.blended_image:
+        return Response(
+            {"error": "Blended image not found."}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        response = FileResponse(project.blended_image.open("rb"), content_type="image/jpeg", as_attachment=True)
+        response["Content-Disposition"] = f'attachment; filename="blended_image_{project.id}.jpg"'
+        return response
+    except Exception as e:
+        return Response(
+            {"error": f"Failed to download image: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

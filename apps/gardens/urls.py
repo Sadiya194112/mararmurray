@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.gardens.views import (
     compose_garden_and_save,
+    download_blended_image,
     create_garden_project,
     garden_project_action,
     list_garden_projects,
@@ -22,6 +23,11 @@ urlpatterns = [
         "projects/<int:project_id>/",
         garden_project_action,
         name="garden-project-detail",
+    ),
+    path(
+        "projects/<int:project_id>/download-blended/",
+        download_blended_image,
+        name="download-blended-image",
     ),
     # Photo standalone APIs
     path("photos/upload/", upload_garden_photo, name="upload-garden-photo"),
