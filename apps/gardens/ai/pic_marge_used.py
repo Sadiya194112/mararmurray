@@ -1,9 +1,29 @@
+import io
 import json
 import os
+import requests
+from io import BytesIO
+from django.core.files.base import ContentFile
 from google import genai
 from google.genai import types
 from PIL import Image
 from dotenv import load_dotenv
+
+def open_image_flexible(path):
+    if isinstance(path, Image.Image):
+        return path
+    path_str = str(path)
+    if path_str.startswith(('http://', 'https://')):
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(path_str, headers=headers, timeout=10)
+            response.raise_for_status()
+            return Image.open(BytesIO(response.content))
+        except Exception as e:
+            print(f"Failed to download image from URL {path_str}: {e}")
+            raise FileNotFoundError(f"Could not load image from URL: {path_str}")
+    else:
+        return Image.open(path_str)
 
 COUNTING_MODELS = [
     "gemini-2.5-pro",
@@ -51,7 +71,7 @@ def suggest_plant_placements(background_path, plant_paths):
     dimensions and perspective-correct depth zones.
     """
     try:
-        bg = Image.open(background_path)
+        bg = open_image_flexible(background_path)
         bw, bh = bg.size
     except FileNotFoundError:
         print(f"suggest_plant_placements: background not found: {background_path}")
@@ -76,7 +96,7 @@ def suggest_plant_placements(background_path, plant_paths):
 
     for plant_path in plant_paths:
         try:
-            pi = Image.open(plant_path)
+            pi = open_image_flexible(plant_path)
             pw, ph = pi.size
             has_alpha = pi.mode in ("RGBA", "LA", "PA")
         except FileNotFoundError:
@@ -104,8 +124,8 @@ def suggest_plant_placements(background_path, plant_paths):
 
 def estimate_plant_counts(client, rendered_image_path, plant_definitions):
     try:
-        rendered_image = Image.open(rendered_image_path)
-        reference_images = [Image.open(plant["path"]) for plant in plant_definitions]
+        rendered_image = open_image_flexible(rendered_image_path)
+        reference_images = [open_image_flexible(plant["path"]) for plant in plant_definitions]
     except FileNotFoundError as e:
         print(f"Error finding image for count analysis: {e}")
         return None
@@ -164,7 +184,7 @@ def _load_plant_rgba(path):
     """
     Load a plant image as RGBA.
     """
-    raw = Image.open(path)
+    raw = open_image_flexible(path)
     result = raw.convert("RGBA")
     return result
 
@@ -176,7 +196,7 @@ def create_garden_mockup(background_path, plants_data):
 
     # -- Step 1: Pillow precision composite (reliable coordinates) -----------
     try:
-        bg_pil = Image.open(background_path).convert("RGBA")
+        bg_pil = open_image_flexible(background_path).convert("RGBA")
         bg_width, bg_height = bg_pil.size
         final_pil = bg_pil.copy()
 
@@ -262,6 +282,7 @@ def create_garden_mockup(background_path, plants_data):
         )
 
         count = 0
+        final_django_file = None
         for part in response.parts:
             if part.inline_data:
                 output_image = part.as_image()
@@ -274,12 +295,20 @@ def create_garden_mockup(background_path, plants_data):
                     print(json.dumps(plant_counts, indent=2))
 
                 count += 1
+                
+                if count == 1:
+                    buffer = io.BytesIO()
+                    output_image.save(buffer, format="JPEG")
+                    final_django_file = ContentFile(buffer.getvalue(), name="ai_garden_render.jpg")
 
         if count == 0:
             print("The API responded, but no images were found in the output.")
+            
+        return final_django_file
 
     except Exception as e:
         print(f"API Error during Gemini enhancement: {e}")
+        return None
 
 if __name__ == "__main__":
 
