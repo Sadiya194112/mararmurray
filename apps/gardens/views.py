@@ -225,12 +225,12 @@ def compose_garden_and_save(request):
             plant = Plant.objects.get(id=plant_id)
             print(f"DEBUG: Found plant in DB -> {plant} (id={plant.id})")
             
-            if plant.image:
-                print(f"DEBUG: Plant {plant.id} has image -> {plant.image.name}")
+            if plant.main_image_url:
+                print(f"DEBUG: Plant {plant.id} has image -> {plant.main_image_url}")
                 try:
                     plants_data_for_ai.append(
                         {
-                            "path": plant.image.path,
+                            "path": plant.main_image_url,
                             "x": item["x"],
                             "y": item["y"],
                             "scale": item.get("scale", 1.0),
@@ -248,7 +248,7 @@ def compose_garden_and_save(request):
                 except Exception as inner_e:
                     print(f"DEBUG: Error accessing plant data properties for {plant.id}: {inner_e}")
             else:
-                print(f"DEBUG: Plant {plant.id} has NO image attached in DB.")
+                print(f"DEBUG: Plant {plant.id} has NO main_image_url attached in DB.")
                 
         except Plant.DoesNotExist:
             print(f"DEBUG: Plant.DoesNotExist for plant_id {plant_id}")
@@ -259,6 +259,12 @@ def compose_garden_and_save(request):
 
     print("DEBUG: Final Plants data for ai: ", plants_data_for_ai)
     
+    if not plants_data_for_ai:
+        return Response(
+            {"error": "Selected plants do not have images in the database. AI cannot render without plant photos."}, 
+            status=400
+        )
+
     try:
         # ৩. কলিং এআই মেকার
         ai_generated_file = create_garden_mockup(
