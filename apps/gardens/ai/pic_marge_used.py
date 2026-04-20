@@ -23,7 +23,10 @@ def open_image_flexible(path):
     """পাথটি ইউআরএল হলে ডাউনলোড করবে, ফাইল হলে সরাসরি ওপেন করবে।"""
     if path.startswith(('http://', 'https://')):
         try:
-            response = requests.get(path, timeout=10)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            }
+            response = requests.get(path, headers=headers, timeout=10)
             response.raise_for_status()
             return Image.open(BytesIO(response.content))
         except Exception as e:
