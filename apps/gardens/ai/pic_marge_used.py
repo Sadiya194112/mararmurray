@@ -3,6 +3,7 @@ from io import BytesIO
 
 import numpy as np
 import requests
+from django.core.files.base import ContentFile
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -238,6 +239,7 @@ def create_garden_mockup(background_path, plants_data):
     load_dotenv()
     client = genai.Client()
     plant_definitions = build_plant_definitions(plants_data)
+    final_django_file = None
 
     try:
         bg_pil = open_image_flexible(background_path).convert("RGBA")
@@ -353,8 +355,14 @@ def create_garden_mockup(background_path, plants_data):
 
                 count += 1
 
+                if count == 1:
+                    final_django_file = ContentFile(
+                        part.inline_data.data, name="ai_garden_render.jpg"
+                    )
+
         if count == 0:
             print("The API responded, but no images were found in the output.")
+        return final_django_file
 
     except Exception as e:
         print(f"API Error during Gemini enhancement: {e}")
