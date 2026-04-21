@@ -1,21 +1,31 @@
-import io
 import json
-import os
-import requests
 from io import BytesIO
-from django.core.files.base import ContentFile
+
+import numpy as np
+import requests
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from PIL import Image
-from dotenv import load_dotenv
+
+try:
+    from rembg import remove as rembg_remove
+
+    REMBG_AVAILABLE = True
+except ImportError:
+    REMBG_AVAILABLE = False
+    print(
+        "[WARNING] rembg not installed. Run: pip install rembg  — plant backgrounds will NOT be removed before compositing."
+    )
+
 
 def open_image_flexible(path):
     if isinstance(path, Image.Image):
         return path
     path_str = str(path)
-    if path_str.startswith(('http://', 'https://')):
+    if path_str.startswith(("http://", "https://")):
         try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            headers = {"User-Agent": "Mozilla/5.0"}
             response = requests.get(path_str, headers=headers, timeout=10)
             response.raise_for_status()
             return Image.open(BytesIO(response.content))
@@ -24,6 +34,7 @@ def open_image_flexible(path):
             raise FileNotFoundError(f"Could not load image from URL: {path_str}")
     else:
         return Image.open(path_str)
+
 
 COUNTING_MODELS = [
     "gemini-2.5-pro",
@@ -78,15 +89,15 @@ def suggest_plant_placements(background_path, plant_paths):
         return []
 
     zones = [
-        ("Foreground left",    0.20, 0.82, 0.15),
-        ("Foreground right",   0.80, 0.82, 0.15),
-        ("Foreground center",  0.50, 0.88, 0.17),
-        ("Midground left",     0.25, 0.62, 0.11),
-        ("Midground right",    0.75, 0.62, 0.11),
-        ("Midground center",   0.50, 0.60, 0.12),
-        ("Background left",    0.15, 0.42, 0.06),
-        ("Background right",   0.85, 0.42, 0.06),
-        ("Background center",  0.50, 0.40, 0.06),
+        ("Foreground left", 0.20, 0.82, 0.15),
+        ("Foreground right", 0.80, 0.82, 0.15),
+        ("Foreground center", 0.50, 0.88, 0.17),
+        ("Midground left", 0.25, 0.62, 0.11),
+        ("Midground right", 0.75, 0.62, 0.11),
+        ("Midground center", 0.50, 0.60, 0.12),
+        ("Background left", 0.15, 0.42, 0.06),
+        ("Background right", 0.85, 0.42, 0.06),
+        ("Background center", 0.50, 0.40, 0.06),
     ]
 
     suggestions = []
@@ -104,7 +115,9 @@ def suggest_plant_placements(background_path, plant_paths):
 
         print(f"\n  Plant: {plant_path}  ({pw}x{ph} px, alpha={has_alpha})")
         if not has_alpha:
-            print("  [!] No alpha channel detected - background removal recommended (rembg).")
+            print(
+                "  [!] No alpha channel detected - background removal recommended (rembg)."
+            )
         print(f"  {'Zone':<25} {'x':>5}  {'y':>5}  {'scale':>6}  {'px size'}")
         print(f"  {'-' * 57}")
 
@@ -114,7 +127,9 @@ def suggest_plant_placements(background_path, plant_paths):
             nw = int(pw * s)
             nh = int(ph * s)
             print(f"  {zone_name:<25} {sx:>5.2f}  {sy:>5.2f}  {s:>6.3f}  {nw}x{nh} px")
-            plant_suggestions.append({"zone": zone_name, "x": sx, "y": sy, "scale": round(s, 4)})
+            plant_suggestions.append(
+                {"zone": zone_name, "x": sx, "y": sy, "scale": round(s, 4)}
+            )
 
         suggestions.append({"path": plant_path, "zones": plant_suggestions})
 
@@ -125,7 +140,9 @@ def suggest_plant_placements(background_path, plant_paths):
 def estimate_plant_counts(client, rendered_image_path, plant_definitions):
     try:
         rendered_image = open_image_flexible(rendered_image_path)
-        reference_images = [open_image_flexible(plant["path"]) for plant in plant_definitions]
+        reference_images = [
+            open_image_flexible(plant["path"]) for plant in plant_definitions
+        ]
     except FileNotFoundError as e:
         print(f"Error finding image for count analysis: {e}")
         return None
@@ -182,11 +199,39 @@ def estimate_plant_counts(client, rendered_image_path, plant_definitions):
 
 def _load_plant_rgba(path):
     """
-    Load a plant image as RGBA.
+    গাছের ছবি RGBA হিসেবে লোড করে। যদি ব্যাকগ্রাউন্ড থাকে, তবে rembg দিয়ে তা সরিয়ে ফেলে।
     """
     raw = open_image_flexible(path)
-    result = raw.convert("RGBA")
-    return result
+    has_real_alpha = raw.mode in ("RGBA", "LA", "PA")
+
+    # RGBA মোড হলেও চেক করা যে আলফা চ্যানেলটি আসলে ট্রান্সপারেন্ট কি না
+    if has_real_alpha:
+        alpha_arr = np.array(raw.getchannel("A"))
+        if alpha_arr.min() == 255:  # পুরোপুরি সলিড হলে আলফা নেই ধরে নেওয়া হবে
+            has_real_alpha = False
+
+    if not has_real_alpha:
+        if REMBG_AVAILABLE:
+            print(
+                f"  [rembg] Removing background from '{path}' (alpha matting enabled) ..."
+            )
+            try:
+                # নিখুঁত কাটিংয়ের জন্য alpha_matting ব্যবহার করা হয়েছে
+                raw = rembg_remove(
+                    raw,
+                    alpha_matting=True,
+                    alpha_matting_foreground_threshold=240,
+                    alpha_matting_background_threshold=10,
+                    alpha_matting_erode_size=10,
+                )
+            except Exception:
+                raw = rembg_remove(raw)
+        else:
+            print(
+                f"  [SKIP bg-removal] '{path}' has no real alpha and rembg is not installed."
+            )
+
+    return raw.convert("RGBA")
 
 
 def create_garden_mockup(background_path, plants_data):
@@ -194,7 +239,6 @@ def create_garden_mockup(background_path, plants_data):
     client = genai.Client()
     plant_definitions = build_plant_definitions(plants_data)
 
-    # -- Step 1: Pillow precision composite (reliable coordinates) -----------
     try:
         bg_pil = open_image_flexible(background_path).convert("RGBA")
         bg_width, bg_height = bg_pil.size
@@ -203,31 +247,33 @@ def create_garden_mockup(background_path, plants_data):
         plants_placed = 0
         for plant in plant_definitions:
             try:
-                p_img = _load_plant_rgba(plant['path'])
+                p_img = _load_plant_rgba(plant["path"])
             except FileNotFoundError:
                 print(f"  [SKIP] Plant image not found: {plant['path']}")
                 continue
 
             orig_w, orig_h = p_img.size
-            new_w = int(orig_w * plant['scale'])
-            new_h = int(orig_h * plant['scale'])
+            new_w = int(orig_w * plant["scale"])
+            new_h = int(orig_h * plant["scale"])
 
             if new_w > 0 and new_h > 0:
                 p_img = p_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-                center_x = int(plant['x'] * bg_width)
-                center_y = int(plant['y'] * bg_height)
-                paste_x  = center_x - (new_w // 2)
-                paste_y  = center_y - (new_h // 2)
+                center_x = int(plant["x"] * bg_width)
+                center_y = int(plant["y"] * bg_height)
+                paste_x = center_x - (new_w // 2)
+                paste_y = center_y - (new_h // 2)
 
                 # Clamp to canvas bounds so plants never go out-of-bounds
-                paste_x = max(0, min(paste_x, bg_width  - new_w))
+                paste_x = max(0, min(paste_x, bg_width - new_w))
                 paste_y = max(0, min(paste_y, bg_height - new_h))
 
                 final_pil.paste(p_img, (paste_x, paste_y), p_img)
                 plants_placed += 1
-                print(f"  Placed {plant['label']} at center=({center_x},{center_y}), "
-                      f"size={new_w}x{new_h}px, scale={plant['scale']:.3f}")
+                print(
+                    f"  Placed {plant['label']} at center=({center_x},{center_y}), "
+                    f"size={new_w}x{new_h}px, scale={plant['scale']:.3f}"
+                )
 
         if plants_placed > 0:
             final_out = final_pil.convert("RGB")
@@ -241,9 +287,6 @@ def create_garden_mockup(background_path, plants_data):
         print(f"Pillow precision mockup failed: {e}")
         return
 
-    # -- Step 2: Gemini enhancement only (lighting, shadows, blending) --------
-    # We send the already-composited Pillow output.  Gemini doesn't re-position
-    # plants - it only enhances the realism of the existing composite.
     try:
         composited_img = Image.open("exact_manual_render.jpg")
     except FileNotFoundError as e:
@@ -251,38 +294,50 @@ def create_garden_mockup(background_path, plants_data):
         return
 
     plant_list_text = "\n".join(
-        [f"- A plant located at approximately X:{int(p['x']*100)}%, Y:{int(p['y']*100)}%" for p in plant_definitions]
+        [
+            f"- Plant '{p['label']}': flower/foliage visible near X:{int(p['x'] * 100)}%, Y:{int(p['y'] * 100)}% "
+            f"— extend stems and foliage DOWNWARD from this point into the ground at Y:{min(int(p['y'] * 100) + 15, 100)}%"
+            for p in plant_definitions
+        ]
     )
 
     enhancement_prompt = (
-        "You are an expert digital artist and photo retoucher. "
-        "The provided input image is a rough composite where plants have been artificially pasted onto a background. "
-        "Your task is to generate a completely NEW, photorealistic image based on this draft. "
-        "Do not simply return the input image; you MUST generate a newly synthesized image with enhanced realism. "
-        f"\n\nCRUCIAL INSTRUCTION: There are exactly {len(plant_definitions)} newly pasted plants in this image that require processing. "
-        f"They are located at:\n{plant_list_text}\n"
-        "You MUST process, shade, and blend EVERY SINGLE ONE of these plants. Do not skip or leave any of them unmodified. "
-        "\n\nCRITICAL ENHANCEMENTS: "
-        "\n1. SEAMLESS INTEGRATION: Keep the plants in their current locations and sizes, but completely re-render "
-        "them so they look 100% natural. Blend their bases seamlessly into the soil, grass, or path."
-        "\n2. LIGHTING & SHADOWS: Match the global lighting direction of the background. Add realistic drop shadows, "
-        "contact shadows, and ambient occlusion beneath and around EVERY pasted plant. "
-        "\n3. HARMONIZATION: Adjust the color temperature, saturation, and contrast of ALL pasted plants to match the "
-        "environment perfectly. Remove any artificial halos or sharp cutout edges. "
-        "\n4. PHOTOREALISM: Ensure the final output looks like a single, unified photograph taken with a high-quality camera."
+        "You are an expert digital artist and botanical illustrator specialising in photorealistic garden visualisation. "
+        "The image provided is a rough composite: plant photos have been cut out with an AI background remover and "
+        "pasted onto a real garden photo. The extractions may be incomplete — stems and lower foliage are often "
+        "cut off, leaving flower heads that look like they are floating or lying on the ground. "
+        "Your task: generate a COMPLETELY NEW, photorealistic version of this scene where every pasted plant "
+        "looks like it is genuinely GROWING from the soil. Do NOT return the input image unchanged. "
+        f"\n\nThere are exactly {len(plant_definitions)} pasted plants requiring full botanical reconstruction:\n{plant_list_text}\n"
+        "\n\nCRITICAL STEP-BY-STEP PROCESS FOR EACH PLANT:"
+        "\n1. STEM & BODY EXTENSION: Each plant likely has its stem and lower leaves cut off. "
+        "You MUST reconstruct and extend the plant body downward — draw realistic stems, leaf nodes, "
+        "and foliage from the visible flower/top down to where the plant would naturally emerge from the soil. "
+        "The plant must look like a complete, upright, living specimen, NOT a cut flower lying flat."
+        "\n2. GROUND ANCHORING: At the base of each reconstructed stem, blend the plant into the surrounding "
+        "soil, gravel, or mulch with natural ground-level foliage, small leaves, and organic debris. "
+        "The transition between plant and ground must be completely seamless."
+        "\n3. UPRIGHT POSTURE: Ensure every plant stands vertically with natural lean — stems should "
+        "appear to grow upward from the earth, following the perspective of the background scene."
+        "\n4. CONTACT SHADOWS & OCCLUSION: Add a soft ground shadow beneath each plant matching the "
+        "overcast, diffuse lighting of the background. Darken the soil slightly at the plant base."
+        "\n5. EDGE FEATHERING: All leaf and petal edges must be softly feathered — zero hard cutout borders."
+        "\n6. COLOUR GRADING: Match each plant to the cool, overcast daylight colour temperature of the scene. "
+        "Reduce any over-saturation so plants look naturally lit, not artificially bright."
+        "\n7. FINAL CHECK: Step back and verify every plant looks like it was photographed in-situ. "
+        "No plant should appear to be a cut flower, a flat sticker, or a floating object."
     )
 
     try:
         response = client.models.generate_content(
-            model='gemini-3.1-flash-image-preview',
+            model="gemini-3.1-flash-image-preview",
             contents=[enhancement_prompt, composited_img],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
-            )
+            ),
         )
 
         count = 0
-        final_django_file = None
         for part in response.parts:
             if part.inline_data:
                 output_image = part.as_image()
@@ -290,26 +345,23 @@ def create_garden_mockup(background_path, plants_data):
                 output_image.save(output_filename)
                 print(f"Saved enhanced render -> {output_filename}")
 
-                plant_counts = estimate_plant_counts(client, output_filename, plant_definitions)
+                plant_counts = estimate_plant_counts(
+                    client, output_filename, plant_definitions
+                )
                 if plant_counts:
                     print(json.dumps(plant_counts, indent=2))
 
                 count += 1
-                
-                if count == 1:
-                    final_django_file = ContentFile(part.inline_data.data, name="ai_garden_render.jpg")
 
         if count == 0:
             print("The API responded, but no images were found in the output.")
-            
-        return final_django_file
 
     except Exception as e:
         print(f"API Error during Gemini enhancement: {e}")
         return None
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     core_background = "background 2.jpg"
 
     # -- Optional: print AI placement suggestions before running -------------
@@ -330,15 +382,15 @@ if __name__ == "__main__":
         {
             "label": "Plant 3",
             "path": "Plant 3.png",
-            "x": 0.35,   # left-center
-            "y": 0.78,   # foreground
+            "x": 0.35,  # left-center
+            "y": 0.78,  # foreground
             "scale": 0.83,  # ~15% of bg width -> natural foreground size
         },
         {
             "label": "Plant 4",
             "path": "Plant 4.png",
-            "x": 0.70,   # right area
-            "y": 0.62,   # midground
+            "x": 0.70,  # right area
+            "y": 0.62,  # midground
             "scale": 0.52,  # ~10% of bg width -> natural midground size
         },
     ]
