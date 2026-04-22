@@ -298,9 +298,9 @@ def create_garden_mockup(background_path, plants_data):
     # 5. Call Gemini — try models in order until one works
     IMAGE_GEN_MODELS = [
         "nano-banana-pro-preview",
-        "imagen-4.0-generate-001",
-        "imagen-4.0-ultra-generate-001",
-        "imagen-4.0-fast-generate-001",
+        "gemini-3.1-flash-image-preview",
+        "gemini-2.5-flash-image",
+        "gemini-3-pro-image-preview",
     ]
 
     response = None
