@@ -3,6 +3,7 @@ import json
 from io import BytesIO
 
 import requests
+from django.core.files.base import ContentFile
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -231,7 +232,7 @@ def create_garden_mockup(background_path, plants_data):
     plant_refs = []
     for p in plant_definitions:
         try:
-            ref = Image.open(p["path"]).convert("RGB")
+            ref = open_image_flexible(p["path"]).convert("RGB")
             # Shrink very large images to keep API payload reasonable
             if max(ref.size) > 900:
                 ratio = 900 / max(ref.size)
@@ -326,9 +327,10 @@ def create_garden_mockup(background_path, plants_data):
             print(
                 'Run: python -c "from google import genai; c=genai.Client(); [print(m.name) for m in c.models.list()]" to see available models.'
             )
-            return
+            return None
 
         count = 0
+        generated_file = None
         for part in response.parts:
             if part.inline_data:
                 raw_bytes = part.inline_data.data
@@ -339,6 +341,8 @@ def create_garden_mockup(background_path, plants_data):
                 counts = estimate_plant_counts(client, out_name, plant_definitions)
                 if counts:
                     print(json.dumps(counts, indent=2))
+                if count == 0:  # Return the first generated image
+                    generated_file = ContentFile(raw_bytes, name="garden_ai.jpg")
                 count += 1
             elif hasattr(part, "text") and part.text:
                 print(f"  Gemini text: {part.text[:300]}")
@@ -349,12 +353,16 @@ def create_garden_mockup(background_path, plants_data):
                 f"  Model used: {used_model}\n"
                 "  The marker layout is saved as exact_manual_render.jpg."
             )
+            return None
+
+        return generated_file
 
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         print(f"Gemini API error: {e}")
+        return None
 
 
 if __name__ == "__main__":
