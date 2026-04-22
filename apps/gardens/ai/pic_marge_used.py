@@ -1,9 +1,8 @@
+import io
 import json
 from io import BytesIO
 
-import numpy as np
 import requests
-from django.core.files.base import ContentFile
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -110,17 +109,11 @@ def suggest_plant_placements(background_path, plant_paths):
         try:
             pi = open_image_flexible(plant_path)
             pw, ph = pi.size
-            has_alpha = pi.mode in ("RGBA", "LA", "PA")
+            # has_alpha = pi.mode in ("RGBA", "LA", "PA")
         except FileNotFoundError:
             continue
 
-        print(f"\n  Plant: {plant_path}  ({pw}x{ph} px, alpha={has_alpha})")
-        if not has_alpha:
-            print(
-                "  [!] No alpha channel detected - background removal recommended (rembg)."
-            )
-        print(f"  {'Zone':<25} {'x':>5}  {'y':>5}  {'scale':>6}  {'px size'}")
-        print(f"  {'-' * 57}")
+        print(f"\n  Plant: {plant_path}  ({pw}x{ph} px")
 
         plant_suggestions = []
         for zone_name, sx, sy, tf in zones:
@@ -152,20 +145,14 @@ def estimate_plant_counts(client, rendered_image_path, plant_definitions):
     counting_prompt = (
         "You are an expert image analyst counting elements in a modified photo.\n"
         "The first image is the final generated garden scene.\n"
-        "Each following image is a reference plant in this exact order:\n"
-        f"{labels}\n\n"
-        "Task: Count how many times EACH reference plant appears in the final garden scene.\n"
-        "CRITICAL INSTRUCTIONS:\n"
-        "- The plants in the garden scene may have been significantly altered by lighting, shading, rescaling, cropping, or slight shape warping during image generation.\n"
-        "- Even if a plant's colors, lighting, or base are heavily blended into the soil/environment, you MUST still count it if its general structure is visible.\n"
-        "Return ONLY valid JSON in this exact format:\n"
-        '{"Plant 1": 0, "Plant 2": 0}'
+        f"Each following image is a reference plant in this exact order: {labels}\n\n"
+        "Count how many times EACH reference plant appears in the final garden scene.\n"
+        "Return ONLY valid JSON: " + '{"Plant 1": 0, "Plant 2": 0}'
     )
 
     request_contents = [counting_prompt, rendered_image]
-    for plant_definition, reference_image in zip(plant_definitions, reference_images):
-        request_contents.append(f"Reference image for {plant_definition['label']}")
-        request_contents.append(reference_image)
+    for pd, ri in zip(plant_definitions, reference_images):
+        request_contents += [f"Reference image for {pd['label']}", ri]
 
     for model_name in COUNTING_MODELS:
         try:
@@ -178,228 +165,215 @@ def estimate_plant_counts(client, rendered_image_path, plant_definitions):
                     temperature=0,
                 ),
             )
-            raw_counts = json.loads(response.text)
-            normalized_counts = {}
-
-            for plant in plant_definitions:
-                label = plant["label"]
-                value = raw_counts.get(label, 0)
-
-                try:
-                    normalized_counts[label] = int(value)
-                except (TypeError, ValueError):
-                    normalized_counts[label] = 0
-
-            return normalized_counts
-        except Exception as model_error:
-            print(f"Counting model {model_name} failed: {model_error}")
-
-    print("Plant counting error: no supported Gemini counting model succeeded.")
+            raw = json.loads(response.text)
+            return {p["label"]: int(raw.get(p["label"], 0)) for p in plant_definitions}
+        except Exception as err:
+            print(f"Counting model {model_name} failed: {err}")
     return None
 
 
-def _load_plant_rgba(path):
-    """
-    গাছের ছবি RGBA হিসেবে লোড করে। যদি ব্যাকগ্রাউন্ড থাকে, তবে rembg দিয়ে তা সরিয়ে ফেলে।
-    """
-    raw = open_image_flexible(path)
-    has_real_alpha = raw.mode in ("RGBA", "LA", "PA")
+def _draw_position_markers(bg_rgb, plant_definitions):
+    """Draw coloured circle + label on background for each plant — no rembg needed."""
+    from PIL import ImageDraw
 
-    # RGBA মোড হলেও চেক করা যে আলফা চ্যানেলটি আসলে ট্রান্সপারেন্ট কি না
-    if has_real_alpha:
-        alpha_arr = np.array(raw.getchannel("A"))
-        if alpha_arr.min() == 255:  # পুরোপুরি সলিড হলে আলফা নেই ধরে নেওয়া হবে
-            has_real_alpha = False
-
-    if not has_real_alpha:
-        if REMBG_AVAILABLE:
-            print(
-                f"  [rembg] Removing background from '{path}' (alpha matting enabled) ..."
-            )
-            try:
-                # নিখুঁত কাটিংয়ের জন্য alpha_matting ব্যবহার করা হয়েছে
-                raw = rembg_remove(
-                    raw,
-                    alpha_matting=True,
-                    alpha_matting_foreground_threshold=240,
-                    alpha_matting_background_threshold=10,
-                    alpha_matting_erode_size=10,
-                )
-            except Exception:
-                raw = rembg_remove(raw)
-        else:
-            print(
-                f"  [SKIP bg-removal] '{path}' has no real alpha and rembg is not installed."
-            )
-
-    return raw.convert("RGBA")
+    marked = bg_rgb.copy()
+    draw = ImageDraw.Draw(marked)
+    bw, bh = marked.size
+    colors = [(255, 60, 60), (60, 60, 255), (60, 200, 60), (255, 200, 0)]
+    for i, p in enumerate(plant_definitions):
+        cx, cy = int(p["x"] * bw), int(p["y"] * bh)
+        r = max(30, int(min(bw, bh) * 0.018))
+        col = colors[i % len(colors)]
+        draw.ellipse(
+            (cx - r, cy - r, cx + r, cy + r), outline=col, width=max(5, r // 3)
+        )
+        # Cross-hair so the exact base point is clear
+        draw.line((cx - r, cy, cx + r, cy), fill=col, width=3)
+        draw.line((cx, cy - r, cx, cy + r), fill=col, width=3)
+        draw.text((cx + r + 10, cy - r // 2), p["label"], fill=col)
+    return marked
 
 
 def create_garden_mockup(background_path, plants_data):
+    """
+    Reference-based painting pipeline:
+
+    Instead of extracting cut-outs (which fails on macro flower photos),
+    we send Gemini:
+      - The clean background with position markers (WHERE to place plants)
+      - Each original plant photo unmodified (WHAT the plant looks like)
+
+    Gemini then paints each plant naturally into the marked location,
+    reconstructing stems, foliage, and ground anchoring from the reference.
+    """
     load_dotenv()
     client = genai.Client()
     plant_definitions = build_plant_definitions(plants_data)
+
+    # 1. Load background
     final_django_file = None
 
     try:
-        bg_pil = open_image_flexible(background_path).convert("RGBA")
-        bg_width, bg_height = bg_pil.size
-        final_pil = bg_pil.copy()
+        bg_rgb = open_image_flexible(background_path).convert("RGB")
+        bg_w, bg_h = bg_rgb.size
+        print(f"Background: {bg_w}x{bg_h} px")
 
-        plants_placed = 0
-        for plant in plant_definitions:
-            try:
-                p_img = _load_plant_rgba(plant["path"])
-            except FileNotFoundError:
-                print(f"  [SKIP] Plant image not found: {plant['path']}")
-                continue
+    except FileNotFoundError:
+        print(f"[ERROR] Background not found: {background_path}")
+        return
 
-            orig_w, orig_h = p_img.size
-            new_w = int(orig_w * plant["scale"])
-            new_h = int(orig_h * plant["scale"])
+    # 2. Position-marker image (saved as the manual render for reference)
+    marker_img = _draw_position_markers(bg_rgb, plant_definitions)
+    marker_img.convert("RGB").save("exact_manual_render.jpg", format="JPEG", quality=95)
+    print("Saved position-marker layout -> exact_manual_render.jpg")
 
-            if new_w > 0 and new_h > 0:
-                p_img = p_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-                center_x = int(plant["x"] * bg_width)
-                center_y = int(plant["y"] * bg_height)
-                paste_x = center_x - (new_w // 2)
-                paste_y = center_y - (new_h // 2)
-
-                # Clamp to canvas bounds so plants never go out-of-bounds
-                paste_x = max(0, min(paste_x, bg_width - new_w))
-                paste_y = max(0, min(paste_y, bg_height - new_h))
-
-                final_pil.paste(p_img, (paste_x, paste_y), p_img)
-                plants_placed += 1
-                print(
-                    f"  Placed {plant['label']} at center=({center_x},{center_y}), "
-                    f"size={new_w}x{new_h}px, scale={plant['scale']:.3f}"
+    # 3. Load each plant as an unmodified reference photo
+    plant_refs = []
+    for p in plant_definitions:
+        try:
+            ref = Image.open(p["path"]).convert("RGB")
+            # Shrink very large images to keep API payload reasonable
+            if max(ref.size) > 900:
+                ratio = 900 / max(ref.size)
+                ref = ref.resize(
+                    (int(ref.width * ratio), int(ref.height * ratio)),
+                    Image.Resampling.LANCZOS,
                 )
+            plant_refs.append((p, ref))
+            print(f"  Reference '{p['label']}': {ref.size}")
+        except FileNotFoundError:
+            print(f"  [SKIP] Not found: {p['path']}")
 
-        if plants_placed > 0:
-            final_out = final_pil.convert("RGB")
-            final_out.save("exact_manual_render.jpg")
-            print("Saved exactly-positioned layout -> exact_manual_render.jpg\n")
-        else:
-            print("[WARNING] No plants were successfully placed in the manual render.")
-            return
-
-    except Exception as e:
-        print(f"Pillow precision mockup failed: {e}")
+    if not plant_refs:
+        print("[ERROR] No plant references loaded.")
         return
 
-    try:
-        composited_img = Image.open("exact_manual_render.jpg")
-    except FileNotFoundError as e:
-        print(f"Cannot load composited image for Gemini enhancement: {e}")
-        return
+    # 4. Build prompt
+    color_names = ["red", "blue", "green", "yellow"]
 
-    plant_list_text = "\n".join(
-        [
-            f"- Plant '{p['label']}': flower/foliage visible near X:{int(p['x'] * 100)}%, Y:{int(p['y'] * 100)}% "
-            f"— extend stems and foliage DOWNWARD from this point into the ground at Y:{min(int(p['y'] * 100) + 15, 100)}%"
-            for p in plant_definitions
-        ]
+    ref_lines = "".join(
+        "  Image %d: reference photo of %s (place at the %s marker).\n"
+        % (i + 2, p["label"], color_names[i % len(color_names)])
+        for i, (p, _) in enumerate(plant_refs)
     )
 
-    enhancement_prompt = (
-        "You are an expert digital artist and botanical illustrator specialising in photorealistic garden visualisation. "
-        "The image provided is a rough composite: plant photos have been cut out with an AI background remover and "
-        "pasted onto a real garden photo. The extractions may be incomplete — stems and lower foliage are often "
-        "cut off, leaving flower heads that look like they are floating or lying on the ground. "
-        "Your task: generate a COMPLETELY NEW, photorealistic version of this scene where every pasted plant "
-        "looks like it is genuinely GROWING from the soil. Do NOT return the input image unchanged. "
-        f"\n\nThere are exactly {len(plant_definitions)} pasted plants requiring full botanical reconstruction:\n{plant_list_text}\n"
-        "\n\nCRITICAL STEP-BY-STEP PROCESS FOR EACH PLANT:"
-        "\n1. STEM & BODY EXTENSION: Each plant likely has its stem and lower leaves cut off. "
-        "You MUST reconstruct and extend the plant body downward — draw realistic stems, leaf nodes, "
-        "and foliage from the visible flower/top down to where the plant would naturally emerge from the soil. "
-        "The plant must look like a complete, upright, living specimen, NOT a cut flower lying flat."
-        "\n2. GROUND ANCHORING: At the base of each reconstructed stem, blend the plant into the surrounding "
-        "soil, gravel, or mulch with natural ground-level foliage, small leaves, and organic debris. "
-        "The transition between plant and ground must be completely seamless."
-        "\n3. UPRIGHT POSTURE: Ensure every plant stands vertically with natural lean — stems should "
-        "appear to grow upward from the earth, following the perspective of the background scene."
-        "\n4. CONTACT SHADOWS & OCCLUSION: Add a soft ground shadow beneath each plant matching the "
-        "overcast, diffuse lighting of the background. Darken the soil slightly at the plant base."
-        "\n5. EDGE FEATHERING: All leaf and petal edges must be softly feathered — zero hard cutout borders."
-        "\n6. COLOUR GRADING: Match each plant to the cool, overcast daylight colour temperature of the scene. "
-        "Reduce any over-saturation so plants look naturally lit, not artificially bright."
-        "\n7. FINAL CHECK: Step back and verify every plant looks like it was photographed in-situ. "
-        "No plant should appear to be a cut flower, a flat sticker, or a floating object."
-    )
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-image-preview",
-            contents=[enhancement_prompt, composited_img],
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-            ),
+    placement_lines = "\n".join(
+        "- %s (%s circle): plant BASE at X=%d%%, Y=%d%% of image. Use Image %d as reference."
+        % (
+            p["label"],
+            color_names[i % len(color_names)],
+            int(p["x"] * 100),
+            int(p["y"] * 100),
+            i + 2,
         )
+        for i, (p, _) in enumerate(plant_refs)
+    )
+
+    prompt = (
+        "You are a professional garden visualisation artist.\n\n"
+        "INPUTS:\n"
+        "  Image 1: real garden photo with coloured circle+crosshair markers "
+        "showing WHERE new plants must be placed.\n" + ref_lines + "\nTASK:\n"
+        "Produce a photorealistic version of the garden with each marked plant "
+        "painted in naturally. Erase the marker circles from the output.\n\n"
+        "PLACEMENT:\n" + placement_lines + "\n\nRULES (every rule is mandatory):\n"
+        "1. WHOLE PLANT: Paint the COMPLETE plant from soil to flower tip - "
+        "roots/base in ground, full stem, all leaves, flowers on top. "
+        "A flower head with no stem is a failure.\n"
+        "2. SCALE: Y>70% = foreground = larger plant. Y<55% = background = smaller.\n"
+        "3. ROOTED: Base blends into soil/gravel/mulch. Plant looks like it has "
+        "always grown there - no floating, no pasting.\n"
+        "4. LIGHTING: Overcast diffuse light matching the scene. Soft ground shadow.\n"
+        "5. BACKGROUND UNCHANGED: Every rock, path, bridge, fence, and existing "
+        "plant must be pixel-identical to Image 1.\n"
+        "6. PHOTOREALISTIC JPEG output only."
+    )
+
+    contents = [prompt, marker_img] + [ref for _, ref in plant_refs]
+    print(
+        f"\nSending to Gemini: 1 marker image + {len(plant_refs)} plant reference(s)..."
+    )
+
+    # 5. Call Gemini — try models in order until one works
+    IMAGE_GEN_MODELS = [
+        "nano-banana-pro-preview",
+        "imagen-4.0-generate-001",
+        "imagen-4.0-ultra-generate-001",
+        "imagen-4.0-fast-generate-001",
+    ]
+
+    response = None
+    used_model = None
+    for model_name in IMAGE_GEN_MODELS:
+        try:
+            print(f"  Trying model: {model_name} ...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE", "TEXT"],
+                ),
+            )
+            used_model = model_name
+            print(f"  Success with: {model_name}")
+            break
+        except Exception as model_err:
+            print(f"  {model_name} unavailable: {model_err}")
+
+    try:
+        if response is None:
+            print("[ERROR] No image-generation model available on this account.")
+            print(
+                'Run: python -c "from google import genai; c=genai.Client(); [print(m.name) for m in c.models.list()]" to see available models.'
+            )
+            return
 
         count = 0
         for part in response.parts:
             if part.inline_data:
-                output_image = part.as_image()
-                output_filename = f"final_garden_render_V2{count}.jpg"
-                output_image.save(output_filename)
-                print(f"Saved enhanced render -> {output_filename}")
-
-                plant_counts = estimate_plant_counts(
-                    client, output_filename, plant_definitions
-                )
-                if plant_counts:
-                    print(json.dumps(plant_counts, indent=2))
-
+                raw_bytes = part.inline_data.data
+                out_img = Image.open(io.BytesIO(raw_bytes))
+                out_name = f"final_garden_render_V2{count}.jpg"
+                out_img.convert("RGB").save(out_name, format="JPEG", quality=95)
+                print(f"Saved -> {out_name}")
+                counts = estimate_plant_counts(client, out_name, plant_definitions)
+                if counts:
+                    print(json.dumps(counts, indent=2))
                 count += 1
-
-                if count == 1:
-                    final_django_file = ContentFile(
-                        part.inline_data.data, name="ai_garden_render.jpg"
-                    )
+            elif hasattr(part, "text") and part.text:
+                print(f"  Gemini text: {part.text[:300]}")
 
         if count == 0:
-            print("The API responded, but no images were found in the output.")
-        return final_django_file
+            print(
+                "[WARNING] Gemini returned no image even though the call succeeded.\n"
+                f"  Model used: {used_model}\n"
+                "  The marker layout is saved as exact_manual_render.jpg."
+            )
 
     except Exception as e:
-        print(f"API Error during Gemini enhancement: {e}")
-        return None
+        import traceback
+
+        traceback.print_exc()
+        print(f"Gemini API error: {e}")
 
 
 if __name__ == "__main__":
-    core_background = "background 2.jpg"
-
-    # -- Optional: print AI placement suggestions before running -------------
-    # Uncomment to see which zones look best for your background dimensions:
-    # suggest_plant_placements(core_background, ["Plant 3.png", "Plant 4.png"])
-
-    # -- Plant definitions ---------------------------------------------------
-    # Scale is now calibrated so the plant fills a reasonable fraction of the
-    # background (15% of width = foreground, 11% = midground, 6% = background).
-    #
-    # Background is 5315x3541 px. Current normalized scales:
-    #   0.83 -> plant fills ~15% of bg width (foreground presence)
-    #   0.52 -> plant fills ~10% of bg width (natural midground)
-    #
-    # Tip: use suggest_plant_placements() to explore all zone options.
+    core_background = "background 3.jpg"
 
     new_plants = [
         {
             "label": "Plant 3",
             "path": "Plant 3.png",
-            "x": 0.35,  # left-center
-            "y": 0.78,  # foreground
-            "scale": 0.83,  # ~15% of bg width -> natural foreground size
+            "x": 0.35,
+            "y": 0.78,
+            "scale": 0.83,
         },
         {
             "label": "Plant 4",
             "path": "Plant 4.png",
-            "x": 0.70,  # right area
-            "y": 0.62,  # midground
-            "scale": 0.52,  # ~10% of bg width -> natural midground size
+            "x": 0.70,
+            "y": 0.62,
+            "scale": 0.52,
         },
     ]
 
