@@ -9,6 +9,16 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
+# Add HEIC support
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIC_AVAILABLE = True
+except ImportError:
+    HEIC_AVAILABLE = False
+
+
 try:
     from rembg import remove as rembg_remove
 
