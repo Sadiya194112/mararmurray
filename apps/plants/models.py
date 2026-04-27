@@ -40,7 +40,7 @@ class Plant(models.Model):
 
     # Images
     image = models.ImageField(upload_to="plant_images/", null=True, blank=True)
-    main_image_url = models.URLField(max_length=500, null=True, blank=True)
+    main_image_url = models.URLField(max_length=5000, blank=True, null=True)
 
     # Growing conditions
     sunlight = models.CharField(
@@ -84,3 +84,11 @@ class Plant(models.Model):
 
     def __str__(self):
         return self.common_name
+
+
+class HarvestMetadata(models.Model):
+    last_processed_page = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Last Page: {self.last_processed_page}"
