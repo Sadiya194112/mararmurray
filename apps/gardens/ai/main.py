@@ -335,5 +335,5 @@ user_questionnaire_answers = {
 # missing_data_json = get_missing_plant_info(dynamic_input, keys_to_fill)
 # print(json.dumps(missing_data_json, indent=4))
 
-result = analyze_image_quality("background 5.HEIC")
-print(json.dumps(result, indent=4))
+# result = analyze_image_quality("background 5.HEIC")
+# print(json.dumps(result, indent=4))
