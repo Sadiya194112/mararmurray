@@ -128,6 +128,8 @@ def upload_garden_photo(request):
             photo.is_acceptable = report.get("is_acceptable")  # Boolean result
             photo.save()
 
+            report["photo_id"] = photo.id
+
             # সরাসরি AI এর দেওয়া সম্পূর্ণ রিপোর্টটি রিটার্ন করা
             return Response(report, status=status.HTTP_201_CREATED)
 
