@@ -107,31 +107,41 @@ def create_garden_project(request):
 @permission_classes([IsAuthenticated])
 def upload_garden_photo(request):
     """
-    Stand-alone photo upload and quality analysis.
-    Returns a photo_id that can be used later in project creation.
+    Stand-alone photo upload and AI quality analysis.
+    Directly saves and returns the AI generated report.
     """
     serializer = GardenPhotoSerializer(data=request.data)
+
     if serializer.is_valid():
         photo = serializer.save(user=request.user)
+
         try:
+            # AI ফাংশন থেকে সরাসরি ডিকশনারি রেজাল্ট নেওয়া
             report = analyze_image_quality(photo.image.path)
-            photo.quality_status = "good" if report.get("is_good_quality") else "poor"
-            photo.quality_issues = report.get("issues", [])
+
+            # ডাটাবেসে সরাসরি AI-এর দেওয়া ভ্যালুগুলো সেভ করা
+            # নিশ্চিত করুন আপনার মডেলে quality_status (CharField) এবং quality_issues (JSONField) আছে
+            photo.quality_status = report.get(
+                "overall_quality"
+            )  # excellent, good, acceptable, poor
+            photo.quality_issues = report.get("issues")  # Full list of issues
+            photo.is_acceptable = report.get("is_acceptable")  # Boolean result
             photo.save()
+
+            # সরাসরি AI এর দেওয়া সম্পূর্ণ রিপোর্টটি রিটার্ন করা
+            return Response(report, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"AI quality check failed: {str(e)}")
             return Response(
                 {
                     "photo_id": photo.id,
-                    "is_good_quality": report.get("is_good_quality"),
-                    "issues": report.get("issues"),
+                    "error": "AI analysis failed",
+                    "details": str(e),
                 },
                 status=status.HTTP_201_CREATED,
             )
-        except Exception as e:
-            logger.error(f"Standalone AI quality check failed: {str(e)}")
-            return Response(
-                {"photo_id": photo.id, "error": "AI check failed"},
-                status=status.HTTP_201_CREATED,
-            )
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -225,7 +235,7 @@ def compose_garden_and_save(request):
         try:
             plant = Plant.objects.get(id=plant_id)
             print(f"DEBUG: Found plant in DB -> {plant} (id={plant.id})")
-            
+
             if plant.main_image_url:
                 print(f"DEBUG: Plant {plant.id} has image -> {plant.main_image_url}")
                 try:
@@ -247,10 +257,12 @@ def compose_garden_and_save(request):
                     )
                     print(f"DEBUG: Successfully added plant {plant.id}")
                 except Exception as inner_e:
-                    print(f"DEBUG: Error accessing plant data properties for {plant.id}: {inner_e}")
+                    print(
+                        f"DEBUG: Error accessing plant data properties for {plant.id}: {inner_e}"
+                    )
             else:
                 print(f"DEBUG: Plant {plant.id} has NO main_image_url attached in DB.")
-                
+
         except Plant.DoesNotExist:
             print(f"DEBUG: Plant.DoesNotExist for plant_id {plant_id}")
             continue
@@ -259,11 +271,13 @@ def compose_garden_and_save(request):
             continue
 
     print("DEBUG: Final Plants data for ai: ", plants_data_for_ai)
-    
+
     if not plants_data_for_ai:
         return Response(
-            {"error": "Selected plants do not have images in the database. AI cannot render without plant photos."}, 
-            status=400
+            {
+                "error": "Selected plants do not have images in the database. AI cannot render without plant photos."
+            },
+            status=400,
         )
 
     try:
@@ -304,16 +318,21 @@ def download_blended_image(request, project_id):
 
     if not project.blended_image:
         return Response(
-            {"error": "Blended image not found."}, 
-            status=status.HTTP_404_NOT_FOUND
+            {"error": "Blended image not found."}, status=status.HTTP_404_NOT_FOUND
         )
 
     try:
-        response = FileResponse(project.blended_image.open("rb"), content_type="image/jpeg", as_attachment=True)
-        response["Content-Disposition"] = f'attachment; filename="blended_image_{project.id}.jpg"'
+        response = FileResponse(
+            project.blended_image.open("rb"),
+            content_type="image/jpeg",
+            as_attachment=True,
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="blended_image_{project.id}.jpg"'
+        )
         return response
     except Exception as e:
         return Response(
-            {"error": f"Failed to download image: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {"error": f"Failed to download image: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
