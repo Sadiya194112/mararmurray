@@ -1,9 +1,20 @@
 import base64
+import io
 import json
 import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from PIL import Image
+
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIC_AVAILABLE = True
+except ImportError:
+    HEIC_AVAILABLE = False
+
 
 load_dotenv()
 
@@ -50,50 +61,123 @@ def get_missing_plant_info(provided_data: dict, missing_keys: list) -> dict:
     return json.loads(response.choices[0].message.content)
 
 
-def encode_image(image_path: str) -> str:
-    """Helper function to convert an image to a base64 string."""
+def encode_image(image_path: str) -> tuple[str, str]:
+    """
+    Converts an image to a base64 string.
+    Handles HEIC/HEIF by converting to JPEG in memory first.
+    Returns a tuple of (base64_string, media_type).
+    """
+    ext = image_path.lower().split(".")[-1]
+
+    if ext in ("heic", "heif"):
+        if not HEIC_AVAILABLE:
+            raise RuntimeError(
+                "HEIC/HEIF images are not supported. "
+                "Install pillow-heif: pip install pillow-heif"
+            )
+        # Open HEIC and convert to JPEG in memory — API doesn't accept HEIC directly
+        image = Image.open(image_path)
+        buffer = io.BytesIO()
+        image.convert("RGB").save(buffer, format="JPEG", quality=95)
+        buffer.seek(0)
+        return base64.b64encode(buffer.read()).decode("utf-8"), "image/jpeg"
+
+    # Standard formats (JPEG, PNG, WEBP, GIF)
+    format_map = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
+        "gif": "image/gif",
+    }
+    media_type = format_map.get(ext, "image/jpeg")
+
     with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+        return base64.b64encode(image_file.read()).decode("utf-8"), media_type
 
 
+def encode_image(image_path: str) -> tuple[str, str]:
+    """
+    Converts an image to a base64 string.
+    Handles HEIC/HEIF by converting to JPEG in memory first.
+    Returns a tuple of (base64_string, media_type).
+    """
+    ext = image_path.lower().split(".")[-1]
+
+    if ext in ("heic", "heif"):
+        if not HEIC_AVAILABLE:
+            raise RuntimeError(
+                "HEIC/HEIF images are not supported. "
+                "Install pillow-heif: pip install pillow-heif"
+            )
+        # Open HEIC and convert to JPEG in memory — API doesn't accept HEIC directly
+        image = Image.open(image_path)
+        buffer = io.BytesIO()
+        image.convert("RGB").save(buffer, format="JPEG", quality=95)
+        buffer.seek(0)
+        return base64.b64encode(buffer.read()).decode("utf-8"), "image/jpeg"
+
+    # Standard formats (JPEG, PNG, WEBP, GIF)
+    format_map = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
+        "gif": "image/gif",
+    }
+    media_type = format_map.get(ext, "image/jpeg")
+
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8"), media_type
+
+
+# ── Update analyze_image_quality to use the new encode_image ─────────────────
 def analyze_image_quality(image_path: str) -> dict:
     """
     Analyzes image quality with balanced thresholds.
-    - Good/decent images pass with feedback
-    - Truly unusable images (severe blur, darkness, overexposure) are rejected
+    Supports JPEG, PNG, WEBP, GIF, and HEIC/HEIF formats.
     """
-    base64_image = encode_image(image_path)
+    # Validate file extension upfront
+    ext = image_path.lower().split(".")[-1]
+    supported = {"jpg", "jpeg", "png", "webp", "gif", "heic", "heif"}
+    if ext not in supported:
+        raise ValueError(
+            f"Unsupported file format: .{ext}. "
+            f"Supported formats: {', '.join(sorted(supported)).upper()}"
+        )
+
+    base64_image, media_type = encode_image(image_path)  # ← now returns both values
 
     system_instruction = """
     You are a strict but fair image quality analyst for a plant/garden photo submission system.
- 
+
     YOUR CORE TASK:
     Determine if the submitted image is genuinely usable for identifying and analyzing a plant or garden subject.
- 
+
     QUALITY DEFINITIONS — apply these precisely:
     - "excellent"  → Sharp focus, good lighting, subject clearly visible. No meaningful issues.
     - "good"       → Subject is clearly identifiable. Minor imperfections (slight edge blur, slight dim/bright). Fully usable.
     - "acceptable" → Subject is visible and identifiable despite some flaws (moderate blur in bg, uneven light). Still usable.
     - "poor"       → Subject is NOT clearly identifiable. Examples: entire image is blurry/out-of-focus,
                      image is too dark to see subject, severely overexposed with no detail. REJECT these.
- 
+
     BLUR RULES (critical — apply carefully):
     - Background bokeh only, subject sharp → "good" or "excellent"
     - Slight blur on subject edges, center sharp → "good"
-    - Noticeable blur on subject but still identifiable → "acceptable"  
+    - Noticeable blur on subject but still identifiable → "acceptable"
     - Entire image is blurry / no area is in focus / subject unrecognizable → "poor" ← REJECT
- 
+
     is_acceptable MAPPING (enforce strictly):
     - "excellent"  → is_acceptable: true
     - "good"       → is_acceptable: true
     - "acceptable" → is_acceptable: true
     - "poor"       → is_acceptable: false
- 
+
     ISSUES RULES:
     - Always include at least 1 issue entry describing what you observed, even for excellent images.
     - For each issue, severity must match reality: don't call a fully-blurred image "moderate" — that is "severe".
     - severity_level at the top level = the highest severity found among all issues.
- 
+
     Return ONLY this exact JSON:
     {
         "is_acceptable": boolean,
@@ -112,7 +196,7 @@ def analyze_image_quality(image_path: str) -> dict:
     """
 
     response = client.chat.completions.create(
-        model="gpt-4o",  # Upgraded from gpt-4o-mini for accurate vision analysis
+        model="gpt-4o",
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_instruction},
@@ -131,8 +215,8 @@ def analyze_image_quality(image_path: str) -> dict:
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}",
-                            "detail": "high",  # Use high detail mode for accurate quality analysis
+                            "url": f"data:{media_type};base64,{base64_image}",  # ← dynamic media type
+                            "detail": "high",
                         },
                     },
                 ],
@@ -143,10 +227,10 @@ def analyze_image_quality(image_path: str) -> dict:
 
     result = json.loads(response.choices[0].message.content)
 
-    # 1. Enforce is_acceptable strictly from overall_quality
+    # Safety net 1: enforce is_acceptable from overall_quality
     result["is_acceptable"] = result.get("overall_quality", "poor") != "poor"
 
-    # 2. Guarantee issues array is never empty
+    # Safety net 2: guarantee issues array is never empty
     if not result.get("issues"):
         quality = result.get("overall_quality", "poor")
         result["issues"] = [
@@ -251,5 +335,5 @@ user_questionnaire_answers = {
 # missing_data_json = get_missing_plant_info(dynamic_input, keys_to_fill)
 # print(json.dumps(missing_data_json, indent=4))
 
-# result = analyze_image_quality("dark.jpg")
-# print(json.dumps(result, indent=4))
+result = analyze_image_quality("background 5.HEIC")
+print(json.dumps(result, indent=4))
