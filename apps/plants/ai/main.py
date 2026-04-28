@@ -16,6 +16,17 @@ def enrich_plant_data(plant_input: dict) -> dict:
     Returns a dict with all required output fields filled in.
     """
 
+    # Smartly handle missing bloom seasons
+    b_spring = plant_input.get("bloom_spring", False)
+    b_summer = plant_input.get("bloom_summer", False)
+    b_fall = plant_input.get("bloom_fall", False)
+    b_winter = plant_input.get("bloom_winter", False)
+
+    # If all are False, it usually means the API had no data (or it's non-flowering).
+    # We pass empty strings so the AI isn't biased by the 'False' defaults and figures it out itself.
+    if not any([b_spring, b_summer, b_fall, b_winter]):
+        b_spring = b_summer = b_fall = b_winter = ""
+
     # Build a focused prompt with only the fields needed for context
     context_fields = {
         "common_name": plant_input.get("common_name", ""),
@@ -32,10 +43,10 @@ def enrich_plant_data(plant_input: dict) -> dict:
         "hint_growth_size": plant_input.get("growth_size", ""),
         "hint_season": plant_input.get("season", ""),
         "hint_care_guide": plant_input.get("care_guide", ""),
-        "hint_bloom_spring": plant_input.get("bloom_spring", ""),
-        "hint_bloom_summer": plant_input.get("bloom_summer", ""),
-        "hint_bloom_fall": plant_input.get("bloom_fall", ""),
-        "hint_bloom_winter": plant_input.get("bloom_winter", ""),
+        "hint_bloom_spring": b_spring,
+        "hint_bloom_summer": b_summer,
+        "hint_bloom_fall": b_fall,
+        "hint_bloom_winter": b_winter,
         "hint_family": plant_input.get("family", ""),
         "hint_propagation": plant_input.get("propagation", ""),
         "hint_color": plant_input.get("color", ""),
