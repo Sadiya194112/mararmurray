@@ -47,6 +47,11 @@ class Command(BaseCommand):
                 if not full_data:
                     continue
 
+                # Filter: The plant MUST be outdoor and MUST have flowers
+                if full_data.get("indoor") is True or full_data.get("flowers") is False:
+                    self.stdout.write(self.style.WARNING(f"   Skipping {sci_name} (Indoor or Non-flowering)"))
+                    continue
+
                 mapped_data = harvester.map_to_model(full_data)
             
                 # ডাটাবেসে শুধুমাত্র এপিআই থেকে পাওয়া ডাটা দিয়ে এন্ট্রি করা
