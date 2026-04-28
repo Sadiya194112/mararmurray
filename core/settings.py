@@ -195,7 +195,7 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     'daily-plant-harvest': {
         'task': 'apps.plants.ai.tasks.automated_daily_harvest',
-        # Run every day at 2:00 AM (UTC)
-        'schedule': crontab(hour=2, minute=0),
+        # Run every day at 11:50 AM (BDT) = 5:50 AM (UTC)
+        'schedule': crontab(hour=5, minute=50),
     },
 }
