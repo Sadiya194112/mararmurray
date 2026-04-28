@@ -26,7 +26,14 @@ class PlantAdmin(admin.ModelAdmin):
         "water",
         "garden_type",
     )
-    list_filter = ("plant_type", "sunlight", "difficulty", "color")
+    list_filter = (
+        "plant_type",
+        "soil_type",
+        "garden_type",
+        "sunlight",
+        "difficulty",
+        "color",
+    )
 
 
 @admin.register(HarvestMetadata)
