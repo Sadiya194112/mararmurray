@@ -11,6 +11,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - mararmurray_network
+  
+  # --- REDIS ADDED ---
+  redis:
+    image: redis:7-alpine
+    container_name: django_redis
+    restart: always
+    networks:
+      - mararmurray_network
 
   django_app:
     image: sadiyairin/mararmurray:latest
@@ -21,16 +29,47 @@ services:
     env_file: .env
     depends_on:
       - db
+      - redis # Redis এর ওপর নির্ভর করবে
     volumes:
+     # - .:/app
       - ./static:/app/static
       - ./media:/app/media
-
-    command: >
-      sh -c "python manage.py collectstatic --noinput && 
-            # python manage.py migrate && 
-             python -m uvicorn core.asgi:application --host 0.0.0.0 --port 8005"
+   # working_dir: /app
+    command: python -m uvicorn core.asgi:application --host 0.0.0.0 --port 8005
     networks:
       - mararmurray_network #Docker network for inter-container communication
+
+  
+  # --- CELERY WORKER ADDED ---
+  celery_worker:
+    image: sadiyairin/mararmurray:latest # একই ইমেজ ব্যবহার করবে
+    container_name: celery_worker
+    restart: always
+    env_file: .env
+    volumes:
+      - ./media:/app/media # ইমেজ সেভ করার জন্য মিডিয়া ভলিউম জরুরি
+    # আপনার প্রোজেক্টের নাম 'core' হলে কমান্ডটি এমন হবে
+    command: celery -A core worker --loglevel=info 
+    depends_on:
+      - db
+      - redis
+      - django_app
+    networks:
+      - mararmurray_network
+      
+  # --- CELERY BEAT ADDED ---
+  celery_beat:
+    image: sadiyairin/mararmurray:latest
+    container_name: celery_beat
+    restart: always
+    env_file: .env
+    command: celery -A core beat --loglevel=info
+    depends_on:
+      - db
+      - redis
+      - django_app
+    networks:
+      - mararmurray_network
 
   nginx:
     image: nginx:latest

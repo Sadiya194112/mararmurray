@@ -189,3 +189,13 @@ CELERY_TASK_SERIALIZER = "json"
 
 
 PERENUAL_API_KEY = os.getenv("PERENUAL_API_KEY")
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'daily-plant-harvest': {
+        'task': 'apps.plants.ai.tasks.automated_daily_harvest',
+        # Run every day at 2:00 AM (UTC)
+        'schedule': crontab(hour=2, minute=0),
+    },
+}

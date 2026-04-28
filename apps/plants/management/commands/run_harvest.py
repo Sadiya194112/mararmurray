@@ -2,9 +2,9 @@ import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from apps.plants.ai.tasks import enrich_and_download_task
 
 from apps.plants.ai.perenual import PerenualHarvester
-from apps.plants.ai.tasks import download_plant_image_task
 from apps.plants.models import HarvestMetadata, Plant
 
 
@@ -33,9 +33,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("❌ No more data in API."))
                 break
 
-            new_plants_found_in_this_page = False
-            plants_already_exists_count = 0
-
             for species in species_list:
                 if processed_count >= target_count:
                     break
@@ -44,52 +41,42 @@ class Command(BaseCommand):
 
                 # চেক করা গাছটি ডাটাবেসে আছে কি না
                 if Plant.objects.filter(scientific_name__icontains=sci_name).exists():
-                    plants_already_exists_count += 1
                     continue
 
-                # নতুন গাছ পাওয়া গেছে
-                new_plants_found_in_this_page = True
                 full_data = harvester.get_details(species["id"])
                 if not full_data:
                     continue
 
                 mapped_data = harvester.map_to_model(full_data)
+            
+                # ডাটাবেসে শুধুমাত্র এপিআই থেকে পাওয়া ডাটা দিয়ে এন্ট্রি করা
                 plant = Plant.objects.create(**mapped_data)
 
-                if mapped_data.get("main_image_url"):
-                    download_plant_image_task.delay(
-                        plant.id, mapped_data["main_image_url"]
-                    )
+                # --- ব্যাকগ্রাউন্ডে AI এবং ইমেজ ডাউনলোডের কাজ পাঠানো ---
+                enrich_and_download_task.delay(plant.id, mapped_data)
 
                 processed_count += 1
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"   [{processed_count}/{target_count}] Saved: {plant.common_name}"
-                    )
-                )
+                self.stdout.write(self.style.SUCCESS(f"   [{processed_count}/{target_count}] Basic data saved: {plant.common_name}. AI enrichment queued."))
                 time.sleep(0.5)
 
             # --- গুরুত্বপূর্ণ লজিক পরিবর্তন ---
 
-            # যদি এই পেজের ৩০টি গাছের সবকটিই অলরেডি ডাটাবেসে থাকে,
-            # শুধুমাত্র তখনই আমরা পরবর্তী পেজে যাব।
-            if (
-                plants_already_exists_count == len(species_list)
-                and len(species_list) > 0
-            ):
+            if processed_count >= target_count:
+                # কোটা পূরণ হয়ে গেছে। পেজে এখনও নতুন গাছ থাকতে পারে,
+                # তাই পেজ নম্বর বাড়ানো হবে না।
+                self.stdout.write(f"📍 Staying on Page {current_page} for next run.")
+                break
+            else:
+                # কোটা পূরণ হয়নি কিন্তু এই পেজের সব গাছ চেক করা শেষ,
+                # তাই পরবর্তী পেজে যেতে হবে।
                 current_page += 1
                 metadata.last_processed_page = current_page
                 metadata.save()
                 self.stdout.write(
                     self.style.NOTICE(
-                        f"🔄 All plants in Page {current_page - 1} exist. Moving to Page {current_page}"
+                        f"🔄 Finished Page {current_page - 1}. Moving to Page {current_page}"
                     )
                 )
-            else:
-                # পেজে এখনও নতুন গাছ থাকতে পারে অথবা কোটা পূরণ হয়ে গেছে,
-                # তাই পেজ নম্বর বাড়ানো হবে না।
-                self.stdout.write(f"📍 Staying on Page {current_page} for next run.")
-                break
 
         self.stdout.write(
             self.style.SUCCESS(

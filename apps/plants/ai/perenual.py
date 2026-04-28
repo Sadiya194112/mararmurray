@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class PerenualHarvester:
-    BASE_URL = "https://perenual.com/api"
+    BASE_URL = "https://perenual.com/api/v2"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -76,11 +76,34 @@ class PerenualHarvester:
             sunlight = "partial_sun"
 
         # Bloom Season Logic
-        bloom_months = str(data.get("bloom_time") or "").lower()
+        # API uses 'flowering_season' or sometimes 'bloom_time'
+        bloom_months = str(data.get("flowering_season") or data.get("bloom_time") or "").lower()
 
         # Image URL extraction
         default_img = data.get("default_image") or {}
         img_url = default_img.get("original_url") or ""
+
+        # Extra Data extraction
+        spacing = ""
+        spacing_data = data.get("xPlantSpacingRequirement")
+        if isinstance(spacing_data, dict):
+            val = spacing_data.get("value", "")
+            unit = spacing_data.get("unit", "")
+            if val and unit:
+                spacing = f"{val} {unit}"
+
+        growth_size = ""
+        dim = data.get("dimensions", [])
+        if dim and isinstance(dim, list) and len(dim) > 0:
+            for d in dim:
+                if d.get("type") == "Height":
+                    min_v = d.get("min_value")
+                    max_v = d.get("max_value")
+                    unit = d.get("unit", "")
+                    if min_v and min_v == max_v:
+                        growth_size = f"{min_v} {unit} tall"
+                    elif min_v and max_v:
+                        growth_size = f"{min_v}-{max_v} {unit} tall"
 
         return {
             "common_name": data.get("common_name", "Unknown"),
@@ -92,19 +115,22 @@ class PerenualHarvester:
             "water": data.get("watering", "Average"),
             "difficulty": data.get("care_level", "Medium"),
             "family": data.get("family", ""),
+            "spacing": spacing,
+            "growth_size": growth_size,
             "care_guide": data.get("care_guide", "Follow standard botanical care."),
-            "bloom_spring": any(m in bloom_months for m in ["march", "april", "may"]),
-            "bloom_summer": any(m in bloom_months for m in ["june", "july", "august"]),
+            "bloom_spring": any(m in bloom_months for m in ["march", "april", "may", "spring"]),
+            "bloom_summer": any(m in bloom_months for m in ["june", "july", "august", "summer"]),
             "bloom_fall": any(
-                m in bloom_months for m in ["september", "october", "november"]
+                m in bloom_months for m in ["september", "october", "november", "fall", "autumn"]
             ),
             "bloom_winter": any(
-                m in bloom_months for m in ["december", "january", "february"]
+                m in bloom_months for m in ["december", "january", "february", "winter"]
             ),
+            "propagation": ", ".join(data.get("propagation", []) or []),
             "tags": ", ".join(
                 [
                     str(t)
-                    for t in (data.get("attraction", []) or [])
+                    for t in (data.get("attracts", []) or [])
                     + (data.get("propagation", []) or [])
                     if t
                 ]
