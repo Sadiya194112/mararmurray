@@ -195,7 +195,9 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     'daily-plant-harvest': {
         'task': 'apps.plants.ai.tasks.automated_daily_harvest',
-        # Run every day at 11:50 AM (BDT) = 5:50 AM (UTC)
-        'schedule': crontab(hour=6, minute=35),
+        # বাংলাদেশ সময় রাত ২টা এবং দুপুর ১টায় চলবে
+        # ২টা BDT = ২০টা UTC (আগের দিন)
+        # ১টা BDT = ৭টা UTC
+        'schedule': crontab(hour='7,20', minute=0),
     },
 }
