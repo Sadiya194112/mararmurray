@@ -105,6 +105,10 @@ class PerenualHarvester:
                     elif min_v and max_v:
                         growth_size = f"{min_v}-{max_v} {unit} tall"
 
+        # Soil extraction
+        soil_list = data.get("soil", [])
+        soil_str = ", ".join([str(s) for s in soil_list]) if soil_list else ""
+
         return {
             "common_name": data.get("common_name", "Unknown"),
             "scientific_name": sci_name,
@@ -113,6 +117,8 @@ class PerenualHarvester:
             "main_image_url": img_url,
             "sunlight": sunlight,
             "water": data.get("watering", "Average"),
+            "soil_type": soil_str,  # Will be passed as hint_soil_type to AI
+            "garden_type": "",      # Will force AI to figure it out instead of defaulting to flower_garden
             "difficulty": data.get("care_level", "Medium"),
             "family": data.get("family", ""),
             "spacing": spacing,
