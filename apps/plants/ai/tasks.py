@@ -50,4 +50,4 @@ def enrich_and_download_task(self, plant_id, api_raw_data):
 def automated_daily_harvest():
     from django.core.management import call_command
     logger.info("🤖 Starting automated daily plant harvest (10 plants)...")
-    call_command('run_harvest', count=100)
+    call_command('run_harvest', count=60)

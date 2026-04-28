@@ -198,6 +198,6 @@ CELERY_BEAT_SCHEDULE = {
         # বাংলাদেশ সময় রাত ২টা এবং দুপুর ১টায় চলবে
         # ২টা BDT = ২০টা UTC (আগের দিন)
         # ১টা BDT = ৭টা UTC
-        'schedule': crontab(hour='7,20', minute=0),
+        'schedule': crontab(hour='8,20', minute='35,0'),
     },
 }
