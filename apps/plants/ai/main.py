@@ -60,8 +60,8 @@ Your task is to generate accurate, detailed plant information based on the plant
 You MUST return a valid JSON object — nothing else, no markdown, no explanation.
 
 Rules:
-- soil_type: must be exactly one of: sandy, clay, loam, not_sure
-- garden_type: must be exactly one of: flower_garden, vegetable_garden, herb_garden, mixed_garden
+- soil_type: must be exactly one of: sandy, clay, loam, not_sure. If the hint says 'sand' or 'sandy', pick sandy. If it says 'clay', pick clay. Otherwise, deduce logically.
+- garden_type: must be exactly one of: flower_garden, vegetable_garden, herb_garden, mixed_garden. Analyze carefully: if grown for food/produce, pick vegetable_garden or herb_garden. If ornamental/flowers, pick flower_garden. Only use mixed_garden as a last resort.
 - bloom_spring, bloom_summer, bloom_fall, bloom_winter: must be boolean (true/false)
 - shopping_link: return a real Amazon or reputable seed/nursery URL if known, otherwise return ""
 - care_guide: write a thorough 3-5 sentence care guide
