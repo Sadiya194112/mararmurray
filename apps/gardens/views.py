@@ -243,7 +243,7 @@ def compose_garden_and_save(request):
                 try:
                     plants_data_for_ai.append(
                         {
-                            "path": plant.main_image_url,
+                            "path": plant.image.path,
                             "x": item["x"],
                             "y": item["y"],
                             "scale": item.get("scale", 1.0),
