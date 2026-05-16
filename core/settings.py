@@ -26,7 +26,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://10.10.13.15:5173",
     "http://127.0.0.1:5173",
-    "http://localhost:5173",
     "http://192.168.56.1:5173",
     "http://192.168.16.108:5173",
 ]
@@ -193,11 +192,11 @@ PERENUAL_API_KEY = os.getenv("PERENUAL_API_KEY")
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    'daily-plant-harvest': {
-        'task': 'apps.plants.ai.tasks.automated_daily_harvest',
+    "daily-plant-harvest": {
+        "task": "apps.plants.ai.tasks.automated_daily_harvest",
         # বাংলাদেশ সময় রাত ২টা এবং দুপুর ১টায় চলবে
         # ২টা BDT = ২০টা UTC (আগের দিন)
         # ১টা BDT = ৭টা UTC
-        'schedule': crontab(hour='8,20', minute='35,0'),
+        "schedule": crontab(hour="8,20", minute="35,0"),
     },
 }
