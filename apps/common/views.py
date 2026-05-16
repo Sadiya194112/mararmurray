@@ -167,6 +167,7 @@ def create_or_update_terms_conditions(request):
     )
 
 
+# ১. Contact Us - Anonymous/No-Reply মেইল
 @api_view(["POST"])
 # @authentication_classes([JWTAuthentication])
 # @permission_classes([IsAuthenticated])
