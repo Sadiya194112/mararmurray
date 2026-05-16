@@ -195,7 +195,7 @@ def contact_us(request):
             f"You have received a new message from the contact form.\n\n"
             f"Name: {full_name}\n"
             f"User Provided Email: {input_email}\n"  # ইনপুট ইমেইল বডিতে
-            f"Logged-in User Account: {request.user.email}\n\n"
+            f"Logged-in User Account: {input_email}\n\n"
             f"Subject: {contact_message.subject}\n"
             f"Message:\n{contact_message.message}"
         )
